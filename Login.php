@@ -11,7 +11,7 @@ if (isset($_SESSION['username'])) {
 $server = 'localhost';
 $username = 'root';
 $password = '';
-$database = 'user_databasee';
+$database = 'user_database';
 
 // Membuat koneksi
 $conn = mysqli_connect($server, $username, $password, $database);
@@ -51,20 +51,21 @@ if (isset($_POST['login'])) {
 }
 
 // Proses Pendaftaran
+
 if (isset($_POST['register'])) {
     $username = $_POST['username'];
     $email = $_POST['email'];
+    $nama_lengkap = $_POST['nama_lengkap'];
     $password = md5($_POST['password']);
-    $role = 'siswa';  // Default role for new registrations
+    $role = 'siswa';
 
-    // Cek apakah username sudah ada
     $checkUser = "SELECT * FROM users WHERE username='$username'";
     $result = mysqli_query($conn, $checkUser);
     
     if (mysqli_num_rows($result) > 0) {
         $error = "Username sudah terdaftar!";
     } else {
-        $sql = "INSERT INTO users (username, email, password, role) VALUES ('$username', '$email', '$password', '$role')";
+        $sql = "INSERT INTO users (username, email, nama_lengkap, password, role) VALUES ('$username', '$email', '$nama_lengkap', '$password', '$role')";
         
         if (mysqli_query($conn, $sql)) {
             $success = "Pendaftaran berhasil! Silakan login.";
@@ -433,7 +434,7 @@ html {
     
     <div class="container">
         <div class="logo">
-            <img src="logo MU.png" alt="M3 Care Logo">
+            <img src="p.png" alt="M3 Care Logo">
         </div>
         
         <?php if (isset($error)): ?>
@@ -462,29 +463,35 @@ html {
                 <p class="auth-switch">New to M3 Care? <a href="?register=1">Sign Up</a></p>
             </form>
         <?php else: ?>
-            <h2>Join M3 Care</h2>
-    <form method="post" action="" class="animate-form">
-        <div class="input-group">
-            <label for="username">Username</label>
-            <input type="text" id="username" name="username" required>
-        </div>
-        
-        <div class="input-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" required>
-        </div>
-        
-        <div class="input-group password-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" required>
-            <span class="password-toggle" id="passwordToggle">
-                <i class="far fa-eye"></i>
-            </span>
-        </div>
-        
-        <button type="submit" name="register">Sign Up</button>
-        <p class="auth-switch">Already have an account? <a href="login.php">Login</a></p>
-    </form>
+            
+            <h2 class="fade-in">Join M3 Care</h2>
+<form method="post" action="" class="animate-form">
+    <div class="input-group slide-up">
+        <label for="nama_lengkap">Nama Lengkap</label>
+        <input type="text" id="nama_lengkap" name="nama_lengkap" required class="fade-in">
+    </div>
+
+    <div class="input-group slide-up">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required class="fade-in">
+    </div>
+    
+    <div class="input-group slide-up">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required class="fade-in">
+    </div>
+    
+    <div class="input-group password-group slide-up">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required class="fade-in">
+        <span class="password-toggle" id="passwordToggle">
+            <i class="far fa-eye"></i>
+        </span>
+    </div>
+    
+    <button type="submit" name="register" class="slide-up">Sign Up</button>
+    <p class="auth-switch fade-in">Already have an account? <a href="login.php">Login</a></p>
+</form>
         <?php endif; ?>
     </div>
 

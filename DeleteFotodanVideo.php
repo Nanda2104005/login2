@@ -3,7 +3,7 @@
 session_start();
 
 // Koneksi ke database
-$conn = new mysqli("localhost", "root", "", "user_databasee");
+$conn = new mysqli("localhost", "root", "", "user_database");
 
 if ($conn->connect_error) {
     die("Koneksi gagal: " . $conn->connect_error);

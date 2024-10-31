@@ -32,7 +32,7 @@ if (!$conn) {
 $servername = "localhost";
 $username = "root"; 
 $password = ""; 
-$dbname = "user_databasee"; 
+$dbname = "user_database"; 
 
 $conn = new mysqli($servername, $username, $password, $dbname);
 

@@ -1,7 +1,5 @@
 <?php
-session_start();
-
-require_once 'session_check.php';
+require_once 'sessioncheck.php';
 // Check if user is logged in
 if (!isset($_SESSION['username'])) {
     header("Location: login.php");
@@ -9,7 +7,6 @@ if (!isset($_SESSION['username'])) {
 }
 
 $role = $_SESSION['role'];
-
 ?>
 
 <!DOCTYPE html>
@@ -62,6 +59,47 @@ $role = $_SESSION['role'];
             transform: translateY(-2px);
         }
 
+        .nav-buttons {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            background: linear-gradient(135deg, var(--accent-color), #ff8f8f);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn-profile {
+            padding: 0.8rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn:hover, .btn-profile:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(28, 168, 131, 0.2);
+        }
+
         .container {
             max-width: 1300px;
             margin: 2rem auto;
@@ -101,6 +139,9 @@ $role = $_SESSION['role'];
             border: 1px solid rgba(28, 168, 131, 0.1);
             position: relative;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
 
         .dashboard-card:hover {
@@ -128,37 +169,36 @@ $role = $_SESSION['role'];
             color: var(--primary-color);
         }
 
-        .btn {
-            padding: 0.8rem 1.5rem;
-            background: linear-gradient(135deg, var(--accent-color), #ff8f8f);
+        .health-icon, .save-icon, .feature-icon {
+            position: absolute;
+            right: 1rem;
+            top: 1rem;
+            font-size: 4rem;
+            opacity: 0.1;
+            color: var(--primary-color);
+            transform: rotate(10deg);
+        }
+
+        .btn-card {
+            display: inline-block;
+            padding: 0.6rem 1.2rem;
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
             color: white;
             border: none;
             border-radius: 25px;
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
-        }
-
-        footer {
-            background: linear-gradient(135deg, var(--primary-color), #159f7f);
-            color: white;
+            text-decoration: none;
+            margin-top: 1rem;
             text-align: center;
-            padding: 1rem 0;
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
         }
 
-        /* Animated background for cards */
+        .btn-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
+        }
+
         .dashboard-card::before {
             content: '';
             position: absolute;
@@ -173,156 +213,108 @@ $role = $_SESSION['role'];
         }
 
         @keyframes shine {
-            0% {
-                background-position: 200% 0;
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        footer {
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
+            color: white;
+            text-align: center;
+            padding: 1rem 0;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                padding: 0.5rem;
             }
-            100% {
-                background-position: -200% 0;
+
+            .navbar > div {
+                width: 100%;
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin: 0.5rem 0;
+            }
+
+            .nav-buttons {
+                justify-content: center;
+                width: 100%;
+                gap: 0.8rem;
+            }
+
+            .btn, .btn-profile {
+                width: auto;
+                min-width: 120px;
+                justify-content: center;
+                font-size: 0.9rem;
+                margin: 0.2rem;
+            }
+
+            .container {
+                padding: 0 1rem;
+                margin: 1rem auto;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+                padding: 0.5rem;
+            }
+
+            .dashboard-card {
+                margin: 0.5rem 0;
+            }
+
+            .dashboard-header h2 {
+                font-size: 1.5rem;
+                padding: 0 1rem;
             }
         }
 
-        /* Health-related icons and animations */
-        .health-icon {
-            position: absolute;
-            right: 1rem;
-            top: 1rem;
-            font-size: 4rem;
-            opacity: 0.1;
-            color: var(--primary-color);
-            transform: rotate(10deg);
+        @media (max-width: 480px) {
+            .navbar a {
+                font-size: 0.8rem;
+                padding: 0.4rem 0.8rem;
+            }
+
+            .nav-buttons {
+                flex-direction: row;
+                gap: 0.5rem;
+                width: 100%;
+                justify-content: center;
+            }
+
+            .btn, .btn-profile {
+                font-size: 0.85rem;
+                padding: 0.7rem 1rem;
+            }
+
+            .dashboard-card {
+                padding: 1.5rem;
+            }
+
+            .btn-card {
+                padding: 0.5rem 0.8rem;
+                font-size: 0.9rem;
+            }
+
+            .health-icon,
+            .save-icon,
+            .feature-icon {
+                font-size: 3rem;
+            }
         }
 
-        .save-icon {
-            position: absolute;
-            right: 1rem;
-            top: 1rem;
-            font-size: 4rem;
-            opacity: 0.1;
-            color: var(--primary-color);
-            transform: rotate(10deg);
+        @viewport {
+            width: device-width;
+            zoom: 1.0;
         }
-
-        .feature-icon {
-            position: absolute;
-            right: 1rem;
-            top: 1rem;
-            font-size: 4rem;
-            opacity: 0.1;
-            color: var(--primary-color);
-            transform: rotate(10deg);
-        }
-
-
-        
-
-
-        
-
-        .btn-card {
-    display: inline-block;
-    padding: 0.6rem 1.2rem;
-    background: linear-gradient(135deg, var(--primary-color), #159f7f);
-    color: white;
-    border: none;
-    border-radius: 25px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-weight: 600;
-    text-decoration: none;
-    margin-top: 1rem;
-    text-align: center;
-}
-
-.btn-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
-}
-
-.dashboard-card {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-
-
-
-@media (max-width: 768px) {
-    .navbar {
-        flex-direction: column;
-        padding: 0.5rem;
-    }
-
-    .navbar > div {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-bottom: 0.5rem;
-        width: 100%;
-    }
-
-    .navbar a {
-        padding: 0.5rem 1rem;
-        margin: 0.2rem;
-        font-size: 0.9rem;
-    }
-
-    .container {
-        padding: 0 1rem;
-        margin: 1rem auto;
-    }
-
-    .dashboard-grid {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-        padding: 0.5rem;
-    }
-
-    .dashboard-card {
-        margin: 0.5rem 0;
-    }
-
-    .btn {
-        padding: 0.7rem 1.2rem;
-        width: 100%;
-        justify-content: center;
-        margin-top: 0.5rem;
-    }
-
-    .dashboard-header h2 {
-        font-size: 1.5rem;
-        padding: 0 1rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .navbar a {
-        font-size: 0.8rem;
-        padding: 0.4rem 0.8rem;
-    }
-
-    .dashboard-card {
-        padding: 1.5rem;
-    }
-
-    .btn-card {
-        padding: 0.5rem 0.8rem;
-        font-size: 0.9rem;
-    }
-
-    .health-icon,
-    .save-icon,
-    .feature-icon {
-        font-size: 3rem;
-    }
-}
-
-/* Add this to ensure proper viewport on mobile devices */
-@viewport {
-    width: device-width;
-    zoom: 1.0;
-}
-
-        
     </style>
 </head>
 <body>
@@ -335,10 +327,18 @@ $role = $_SESSION['role'];
             <a href="about.php"><i class="fas fa-info-circle icon"></i>About Us</a>
         <?php endif; ?>
     </div>
-    <a href="logout.php" class="btn">
-    <i class="fas fa-sign-out-alt"></i>
-    Logout
-</a>
+    <div class="nav-buttons">
+        <?php if ($role === 'siswa'): ?>
+            <a href="profile.php" class="btn-profile">
+                <i class="fas fa-user"></i>
+                Profile
+            </a>
+        <?php endif; ?>
+        <a href="logout.php" class="btn">
+            <i class="fas fa-sign-out-alt"></i>
+            Logout
+        </a>
+    </div>
 </nav>
 
 <div class="container">
@@ -357,9 +357,9 @@ $role = $_SESSION['role'];
             </div>
 
             <div class="dashboard-card">
-            <i class="fas fa-notes-medical feature-icon"></i>
+                <i class="fas fa-notes-medical feature-icon"></i>
                 <div>
-                    <h3> <i class="fas fa-notes-medical icon"></i></i>Rekam Kesehatan Digital</h3>
+                    <h3><i class="fas fa-notes-medical icon"></i>Rekam Kesehatan Digital</h3>
                     <p>Dapatkan notifikasi real-time untuk kondisi kesehatan yang memerlukan penanganan segera.</p>
                 </div>
                 <a href="RekamKesehatan.php" class="btn-card">Buka Rekam Kesehatan</a>
@@ -377,15 +377,14 @@ $role = $_SESSION['role'];
             <div class="dashboard-card">
                 <i class="fas fa-chart-line health-icon"></i>
                 <div>
-                <h3><i class="fas fa-chart-bar icon"></i>Pengecekan Kesehatan</h3>
-                <p>Visualisasi data kesehatan komprehensif dengan grafik dan laporan yang mudah dipahami berupa Kalkulator BMI,Tekanan Darah dan Gula Darah.</p>
+                    <h3><i class="fas fa-chart-bar icon"></i>Analisis Kesehatan</h3>
+                    <p>Visualisasi data kesehatan komprehensif dengan grafik dan laporan yang mudah dipahami berupa Kalkulator BMI,Tekanan Darah dan Gula Darah.</p>
                 </div>
-                <a href="analisiskesehatan.php" class="btn-card">Buka Pengecekan Kesehatan</a>
+                <a href="analisiskesehatan.php" class="btn-card">Buka Analisis Kesehatan</a>
             </div>
 
-
             <div class="dashboard-card">
-            <i class="fas fa-save save-icon"></i>
+                <i class="fas fa-save save-icon"></i>
                 <div>
                     <h3><i class="fas fa-save"></i>Penyimpanan File dan Video Admin</h3>
                     <p>Disini anda bisa melihat foto dan video yang admin simpan sebelumnya.</p>
@@ -393,44 +392,34 @@ $role = $_SESSION['role'];
                 <a href="savefilefotodanvideo.php" class="btn-card">Buka Penyimpanan File Foto dan Video</a>
             </div>
 
-
             <div class="dashboard-card">
-            <i class="fas fa-save save-icon"></i>
+                <i class="fas fa-save save-icon"></i>
                 <div>
                     <h3><i class="fas fa-save"></i>Upload Edukasi Kesehatan</h3>
                     <p>Disini anda bisa melihat foto dan video kalian yang sudah kalian simpan.</p>
                 </div>
                 <a href="edukasikesehatan.php" class="btn-card">Buka Upload Edukasi Kesehatan</a>
             </div>
+
+            <div class="dashboard-card">
+                <i class="fas fa-save save-icon"></i>
+                <div>
+                    <h3><i class="fas fa-save"></i>Inventaris Kesehatan</h3>
+                    <p>Disini anda bisa melihat foto dan video kalian yang sudah kalian simpan.</p>
+                </div>
+                <a href="inventaris_uks.php" class="btn-card">Buka Inventaris Kesehatan</a>
+            </div>
         <?php endif; ?>
-
-        <!-- Common cards for both admin and student -->
-
-       
-
-
 
         <?php if ($role === 'siswa'): ?>
             <div class="dashboard-card">
-            <i class="fas fa-notes-medical feature-icon"></i>
-                <div>
-                    <h3> <i class="fas fa-notes-medical icon"></i></i>Rekam Kesehatan Digital</h3>
-                    <p>Dapatkan notifikasi real-time untuk kondisi kesehatan yang memerlukan penanganan segera.</p>
-                </div>
-                <a href="RekamKesehatan.php" class="btn-card">Buka Rekam Kesehatan</a>
-            </div>
-
-
-            <div class="dashboard-card">
-            <i class="fas fa-save save-icon"></i>
+                <i class="fas fa-save save-icon"></i>
                 <div>
                     <h3><i class="fas fa-save"></i>Edukasi Kesehatan Siswa</h3>
                     <p>Disini anda bisa melihat foto dan video edukasi yang telah disediakan.</p>
                 </div>
                 <a href="savefilefotodanvideosiswa.php" class="btn-card">Buka Edukasi Kesehatan Siswa</a>
             </div>
-
-                
         <?php endif; ?>
     </div>
 </div>

@@ -10,23 +10,43 @@ if ($conn->connect_error) {
 
 // Tambahkan kode pencarian
 $search = isset($_GET['search']) ? $_GET['search'] : '';
-$searchResults = array(); // Array untuk menyimpan id hasil pencarian
+$searchResults = array(); 
 
+// Modifikasi fungsi untuk mengambil semua rekam kesehatan
+function ambilSemuaRekamKesehatan() {
+    global $conn;
+    $result = $conn->query("SELECT * FROM rekam_kesehatan ORDER BY tanggal DESC");
+    return $result->fetch_all(MYSQLI_ASSOC);
+}
+
+// Modifikasi logika pencarian untuk mengurutkan hasil
 if (!empty($search)) {
-    $sql = "SELECT * FROM rekam_kesehatan WHERE 
-            nama LIKE ? OR 
-            nis LIKE ? OR 
-            keluhan LIKE ? OR 
-            diagnosis LIKE ? OR 
-            Pertolongan_Pertama LIKE ? 
-            ORDER BY tanggal DESC";
+    $sql = "SELECT *, 
+            CASE 
+                WHEN nama LIKE ? THEN 1
+                WHEN nis LIKE ? THEN 2
+                WHEN keluhan LIKE ? THEN 3
+                WHEN diagnosis LIKE ? THEN 4
+                WHEN Pertolongan_Pertama LIKE ? THEN 5
+                ELSE 6
+            END as search_relevance
+            FROM rekam_kesehatan 
+            WHERE nama LIKE ? OR 
+                  nis LIKE ? OR 
+                  keluhan LIKE ? OR 
+                  diagnosis LIKE ? OR 
+                  Pertolongan_Pertama LIKE ?
+            ORDER BY search_relevance ASC, tanggal DESC";
+    
     $search_term = "%$search%";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssss", $search_term, $search_term, $search_term, $search_term, $search_term);
+    $stmt->bind_param("ssssssssss", 
+        $search_term, $search_term, $search_term, $search_term, $search_term,
+        $search_term, $search_term, $search_term, $search_term, $search_term
+    );
     $stmt->execute();
     $daftarRekamKesehatan = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     
-    // Simpan ID hasil pencarian
     foreach ($daftarRekamKesehatan as $rekam) {
         $searchResults[] = $rekam['id'];
     }
@@ -34,92 +54,6 @@ if (!empty($search)) {
     $daftarRekamKesehatan = ambilSemuaRekamKesehatan();
 }
 
-// Fungsi untuk menambah rekam medis baru
-function tambahRekamKesehatan($nama, $nis, $keluhan, $diagnosis, $Pertolongan_Pertama) {
-    global $conn;
-    $sql = "INSERT INTO rekam_kesehatan (nama, nis, keluhan, diagnosis, Pertolongan_Pertama, tanggal) 
-            VALUES (?, ?, ?, ?, ?, NOW())";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssss", $nama, $nis, $keluhan, $diagnosis, $Pertolongan_Pertama);
-    
-    if ($stmt->execute()) {
-        return true;
-    } else {
-        echo "Error: " . $stmt->error; // Tampilkan pesan kesalahan
-        return false;
-    }
-}
-
-// Fungsi untuk mengambil semua rekam medis
-function ambilSemuaRekamKesehatan() {
-    global $conn;
-    $result = $conn->query("SELECT * FROM rekam_kesehatan ORDER BY tanggal DESC");
-    return $result->fetch_all(MYSQLI_ASSOC);
-}
-
-// Fungsi untuk mengambil data by ID
-function ambilRekamKesehatanById($id) {
-    global $conn;
-    $stmt = $conn->prepare("SELECT * FROM rekam_kesehatan WHERE id = ?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    return $stmt->get_result()->fetch_assoc();
-}
-
-// Fungsi untuk update data
-function updateRekamKesehatan($id, $nama, $nis, $keluhan, $diagnosis, $Pertolongan_Pertama) {
-    global $conn;
-    $sql = "UPDATE rekam_kesehatan SET nama=?, nis=?, keluhan=?, diagnosis=?, Pertolongan_Pertama=? WHERE id=?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssssi", $nama, $nis, $keluhan, $diagnosis, $Pertolongan_Pertama, $id);
-    
-    if ($stmt->execute()) {
-        return true;
-    } else {
-        echo "Error: " . $stmt->error; // Tampilkan pesan kesalahan
-        return false;
-    }
-}
-
-// Proses form jika ada submission
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (isset($_POST['edit_id'])) {
-        // Proses edit
-        $id = $_POST['edit_id'];
-        $nama = $_POST["nama"];
-        $nis = $_POST["nis"];
-        $keluhan = $_POST["keluhan"];
-        $diagnosis = $_POST["diagnosis"];
-        $Pertolongan_Pertama = $_POST["Pertolongan_Pertama"];
-        
-        if (updateRekamKesehatan($id, $nama, $nis, $keluhan, $diagnosis, $Pertolongan_Pertama)) {
-            $pesanSukses = "Data berhasil diupdate.";
-        } else {
-            $pesanError = "Terjadi kesalahan saat update data.";
-        }
-    } else {
-        // Proses tambah baru
-        $nama = $_POST["nama"];
-        $nis = $_POST["nis"];
-        $keluhan = $_POST["keluhan"];
-        $diagnosis = $_POST["diagnosis"];
-        $Pertolongan_Pertama = $_POST["Pertolongan_Pertama"];
-        
-        if (tambahRekamKesehatan($nama, $nis, $keluhan, $diagnosis, $Pertolongan_Pertama)) {
-            $pesanSukses = "Rekam kesehatan berhasil ditambahkan.";
-        } else {
-            $pesanError = "Terjadi kesalahan. Silakan coba lagi.";
-        }
-    }
-}
-
-// Ambil data untuk edit jika ada parameter id
-$dataEdit = null;
-if (isset($_GET['edit'])) {
-    $dataEdit = ambilRekamKesehatanById($_GET['edit']);
-}
-
-$daftarRekamKesehatan = ambilSemuaRekamKesehatan();
 ?>
 
 <!DOCTYPE html>
@@ -129,342 +63,756 @@ $daftarRekamKesehatan = ambilSemuaRekamKesehatan();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistem Rekam Kesehatan Digital</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
          :root {
-        --primary-color: #1ca883;
-        --secondary-color: #f0f9f6;
-        --accent-color: #ff6b6b;
-        --text-color: #2c3e50;
-        --background-color: #ecf0f1;
-        --card-hover: #e8f5f1;
-        --danger-color: #e74c3c;
-    }
-
-    body {
-        font-family: 'Poppins', sans-serif;
-        margin: 0;
-        padding: 0;
-        background-color: var(--secondary-color);
-        color: var(--text-color);
-        min-height: 100vh;
-        padding-bottom: 60px;
-    }
-
-    .container {
-        max-width: 1300px;
-        margin: 2rem auto;
-        padding: 0 2rem;
-        overflow-x: auto;
-        position: relative;
-    }
-
-    header, .dashboard-header {
-        background: linear-gradient(135deg, var(--primary-color), #159f7f);
-        color: white;
-        text-align: center;
-        padding: 1rem;
-        border-radius: 20px 20px 0 0;
-        margin-bottom: 2rem;
-    }
-
-    .dashboard-header {
-        position: relative;
-        color: white; /* Changed to white */
-        font-weight: 600;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        background: linear-gradient(135deg, var(--primary-color), #159f7f);
-        border-radius: 20px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    /* Removed the :after pseudo-element for dashboard-header */
-
-    /* Form Styles */
-    form {
-        background-color: white;
-        border-radius: 20px;
-        padding: 2rem;
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-        margin-bottom: 2rem;
-    }
-
-    input[type="text"], 
-    input[type="number"], 
-    textarea {
-        width: 100%;
-        padding: 12px;
-        margin-bottom: 20px;
-        border: 1px solid var(--secondary-color);
-        border-radius: 8px;
-        box-sizing: border-box;
-        transition: border-color 0.3s ease;
-        font-family: 'Poppins', sans-serif;
-    }
-
-    /* Table Styles */
-    .content-table {
-        width: 100%;
-        background: white;
-        border-radius: 20px;
-        overflow: hidden;
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-        margin-bottom: 2rem;
-        border-collapse: separate;
-        border-spacing: 0;
-        table-layout: fixed;
-    }
-
-    .content-table th {
-        background-color: var(--primary-color);
-        color: white;
-        padding: 1.2rem;
-        text-align: left;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.9rem;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-    }
-
-    .content-table td {
-        padding: 1rem;
-        border-bottom: 1px solid var(--secondary-color);
-        vertical-align: middle;
-        word-wrap: break-word;
-    }
-
-    .content-table tr:hover {
-        background-color: var(--card-hover);
-    }
-
-    /* Button Styles */
-    .btn,
-    .btn-back,
-    .btn-edit,
-    .btn-card,
-    .btn-search,
-    input[type="submit"] {
-        padding: 0.6rem 1.2rem;
-        background: linear-gradient(135deg, var(--primary-color), #159f7f);
-        color: white;
-        border: none;
-        border-radius: 25px;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-block;
-        font-weight: 500;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
-    }
-
-    .btn:hover,
-    .btn-back:hover,
-    .btn-edit:hover,
-    .btn-card:hover,
-    .btn-search:hover,
-    input[type="submit"]:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
-    }
-
-    .btn-back {
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        z-index: 1000;
-    }
-
-    /* Search Container */
-    .search-container {
-        background: white;
-        border-radius: 20px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-    }
-
-    .search-form {
-        display: flex;
-        gap: 15px;
-        margin: 0;
-        padding: 0;
-        background: none;
-        box-shadow: none;
-        width: 100%;
-        justify-content: center;
-    }
-
-    .search-form input[type="text"] {
-        width: 300px;
-        margin: 0;
-    }
-
-    /* Alert Messages */
-    .alert {
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-        text-align: center;
-        animation: fadeOut 3s forwards;
-        animation-delay: 2s;
-    }
-
-    .alert.success {
-        background-color: var(--secondary-color);
-        color: var(--primary-color);
-    }
-
-    .alert.error {
-        background-color: #fde2e2;
-        color: var(--danger-color);
-    }
-
-    /* Footer */
-    footer {
-        background: linear-gradient(135deg, var(--primary-color), #159f7f);
-        color: white;
-        text-align: center;
-        padding: 1rem 0;
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-    }
-
-    /* Animation */
-    .highlight {
-        animation: highlightFade 3s forwards;
-    }
-
-    @keyframes highlightFade {
-        0% {
-            background-color: rgba(28, 168, 131, 0.2);
+            --primary-color: #1ca883;
+            --secondary-color: #f0f9f6;
+            --accent-color: #ff6b6b;
+            --text-color: #2c3e50;
+            --background-color: #ecf0f1;
+            --card-hover: #e8f5f1;
+            --danger-color: #e74c3c;
         }
-        100% {
-            background-color: transparent;
-        }
-    }
 
-    @keyframes fadeOut {
-        from {
-            opacity: 1;
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            padding-bottom: 60px;
         }
-        to {
-            opacity: 0;
-            display: none;
-        }
-    }
 
-    /* Responsive Design */
-    @media screen and (max-width: 1024px) {
         .container {
-            padding: 0 1rem;
+            max-width: 1300px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .dashboard-header {
+            position: relative;
+            color: white;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
         }
 
         .content-table {
-            display: block;
-            overflow-x: auto;
-            white-space: nowrap;
-        }
-    }
-
-    @media screen and (max-width: 768px) {
-        .container {
-            padding: 0 0.5rem;
-        }
-
-        header, .dashboard-header {
-            padding: 0.8rem;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+            border-collapse: separate;
+            border-spacing: 0;
+            table-layout: fixed;
         }
 
-        .content-table th,
+        .content-table th {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1.2rem;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
         .content-table td {
-            padding: 0.8rem;
+            padding: 1rem;
+            border-bottom: 1px solid var(--secondary-color);
+            vertical-align: middle;
+            word-wrap: break-word;
         }
 
-        .btn,
-        .btn-back,
-        .btn-edit,
-        .btn-card,
-        .btn-search,
-        input[type="submit"] {
-            padding: 0.5rem 1rem;
-            font-size: 0.8rem;
+        .content-table tr:hover {
+            background-color: var(--card-hover);
+        }
+
+        .btn-back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            padding: 0.6rem 1.2rem;
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
+        }
+
+        .search-container {
+            background: white;
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
         }
 
         .search-form {
-            flex-direction: column;
+            display: flex;
+            gap: 15px;
+            margin: 0;
+            padding: 0;
+            background: none;
+            box-shadow: none;
+            width: 100%;
+            justify-content: center;
         }
 
         .search-form input[type="text"] {
-            width: 100%;
+            width: 300px;
+            margin: 0;
+            padding: 12px;
+            border: 1px solid var(--secondary-color);
+            border-radius: 8px;
+            font-family: 'Poppins', sans-serif;
         }
-    }
 
-    .btn,
-.btn-back,
-.btn-edit,
-.btn-delete,
-.btn-card,
-.btn-search,
-input[type="submit"] {
-    padding: 0.6rem 1.2rem;
+        .btn-search {
+            padding: 0.6rem 1.2rem;
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-search:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
+        }
+
+        /* Icon button styles */
+        .icon-button {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            color: #666;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 5px;
+        }
+
+        .icon-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .icon-button.edit {
+            color: var(--primary-color);
+        }
+
+        .icon-button.delete {
+            color: var(--danger-color);
+        }
+
+        .icon-button i {
+            font-size: 1.2rem;
+        }
+
+        .content-table td:last-child {
+            white-space: nowrap;
+            width: 100px;
+        }
+
+        /* Modifikasi style untuk highlight hasil pencarian */
+        .highlight {
+            background-color: rgba(28, 168, 131, 0.2) !important;
+            animation: none;
+        }
+
+        @media screen and (max-width: 1024px) {
+            .container {
+                padding: 0 1rem;
+            }
+
+            .content-table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+        }
+
+        @media screen and (max-width: 768px) {
+            .container {
+                padding: 0 0.5rem;
+            }
+
+            .dashboard-header {
+                padding: 0.8rem;
+            }
+
+            .content-table th,
+            .content-table td {
+                padding: 0.8rem;
+            }
+
+            .btn-back,
+            .btn-search {
+                padding: 0.5rem 1rem;
+                font-size: 0.8rem;
+            }
+
+            .search-form {
+                flex-direction: column;
+            }
+
+            .search-form input[type="text"] {
+                width: 100%;
+            }
+
+            .icon-button {
+                padding: 6px;
+            }
+
+            .icon-button i {
+                font-size: 1rem;
+            }
+        }
+        /* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    overflow: auto;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translate(-50%, -60%);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, -50%);
+        opacity: 1;
+    }
+}
+
+.modal-content {
+    background-color: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 2rem;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    animation: slideIn 0.3s ease;
+}
+
+.modal-header {
+    background: linear-gradient(135deg, var(--primary-color), #159f7f);
+    margin: -2rem -2rem 2rem -2rem;
+    padding: 1.5rem 2rem;
+    border-radius: 20px 20px 0 0;
     color: white;
-    border: none;
+    position: relative;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.close {
+    position: absolute;
+    right: 1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 24px;
+    color: white;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: all 0.3s ease;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-50%) rotate(90deg);
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: #f8f9fa;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    border-color: var(--primary-color);
+    background: white;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(28, 168, 131, 0.1);
+}
+
+.form-group textarea {
+    min-height: 120px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.form-group input:hover,
+.form-group textarea:hover {
+    border-color: #ccc;
+    background: white;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eee;
+}
+
+.btn-modal {
+    padding: 0.8rem 1.5rem;
     border-radius: 25px;
     cursor: pointer;
-    text-decoration: none;
-    display: inline-block;
     font-weight: 500;
-    font-size: 0.9rem;
+    border: none;
     transition: all 0.3s ease;
-    margin: 0 5px;
+    font-size: 0.95rem;
 }
 
-.btn,
-.btn-back,
-.btn-edit,
-.btn-card,
-.btn-search,
-input[type="submit"] {
+.btn-save {
     background: linear-gradient(135deg, var(--primary-color), #159f7f);
+    color: white;
+    min-width: 120px;
 }
 
-.btn-delete {
-    background: linear-gradient(135deg, var(--danger-color), #c0392b);
-}
-
-.btn:hover,
-.btn-back:hover,
-.btn-edit:hover,
-.btn-delete:hover,
-.btn-card:hover,
-.btn-search:hover,
-input[type="submit"]:hover {
+.btn-save:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
 }
 
-.btn-delete:hover {
-    box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+.btn-cancel {
+    background: #f8f9fa;
+    color: #666;
+    border: 1px solid #ddd;
 }
 
-/* Responsive Design */
+.btn-cancel:hover {
+    background: #e9ecef;
+    transform: translateY(-2px);
+}
+
+/* Responsive adjustments */
 @media screen and (max-width: 768px) {
-    .btn,
-    .btn-back,
-    .btn-edit,
-    .btn-delete,
-    .btn-card,
-    .btn-search,
-    input[type="submit"] {
-        padding: 0.5rem 1rem;
-        font-size: 0.8rem;
+    .modal-content {
+        width: 95%;
+        margin: 10px;
+        padding: 1.5rem;
+    }
+
+    .modal-header {
+        padding: 1rem 1.5rem;
+        margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    }
+
+    .btn-modal {
+        padding: 0.7rem 1.2rem;
+        font-size: 0.9rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
     }
 }
+
+.rekap-button-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.btn-rekap {
+    padding: 0.8rem 1.5rem;
+    background: linear-gradient(135deg, #2c3e50, #3498db);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-rekap:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(44, 62, 80, 0.3);
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: #f8f9fa;
+    box-sizing: border-box;
+    margin-bottom: 1rem;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    background: white;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(28, 168, 131, 0.1);
+}
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    overflow: auto;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translate(-50%, -60%);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, -50%);
+        opacity: 1;
+    }
+}
+
+.modal-content {
+    background-color: white;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 2rem;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    animation: slideIn 0.3s ease;
+}
+
+.modal-header {
+    background: linear-gradient(135deg, var(--primary-color), #159f7f);
+    margin: -2rem -2rem 2rem -2rem;
+    padding: 1.5rem 2rem;
+    border-radius: 20px 20px 0 0;
+    color: white;
+    position: sticky;
+    top: -2rem;
+    z-index: 1;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.close {
+    position: absolute;
+    right: 1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 24px;
+    color: white;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: all 0.3s ease;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-50%) rotate(90deg);
+}
+
+/* Form styling */
+.modal form {
+    padding: 0 1rem;
+    box-sizing: border-box;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: #f8f9fa;
+    box-sizing: border-box;
+}
+
+.form-group textarea {
+    min-height: 100px;
+    max-height: 200px;
+    resize: vertical;
+    line-height: 1.5;
+    overflow-y: auto;
+    width: 100% !important; /* Ensure textarea doesn't exceed container */
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    border-color: var(--primary-color);
+    background: white;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(28, 168, 131, 0.1);
+}
+
+.form-group input:hover,
+.form-group textarea:hover {
+    border-color: #ccc;
+    background: white;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding: 1.5rem 1rem;
+    border-top: 1px solid #eee;
+    position: sticky;
+    bottom: -2rem;
+    background: white;
+    margin: 2rem -1rem -2rem -1rem;
+}
+
+.btn-modal {
+    padding: 0.8rem 1.5rem;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 500;
+    border: none;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-save {
+    background: linear-gradient(135deg, var(--primary-color), #159f7f);
+    color: white;
+    min-width: 120px;
+}
+
+.btn-save:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
+}
+
+.btn-cancel {
+    background: #f8f9fa;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.btn-cancel:hover {
+    background: #e9ecef;
+    transform: translateY(-2px);
+}
+
+/* Scrollbar styling */
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: #bbb;
+}
+
+/* Custom scrollbar for textareas */
+.form-group textarea::-webkit-scrollbar {
+    width: 6px;
+}
+
+.form-group textarea::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.form-group textarea::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.form-group textarea::-webkit-scrollbar-thumb:hover {
+    background: #bbb;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        padding: 1.5rem;
+    }
+
+    .modal-header {
+        padding: 1rem 1.5rem;
+        margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    }
+
+    .modal form {
+        padding: 0 0.5rem;
+    }
+
+    .form-group input,
+    .form-group textarea {
+        padding: 0.7rem;
+        font-size: 0.95rem;
+    }
+
+    .btn-modal {
+        padding: 0.7rem 1.2rem;
+        font-size: 0.9rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 0.5rem;
+        margin: 1.5rem -0.5rem -1.5rem -0.5rem;
+    }
+}
+        .btn-save {
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
+            color: white;
+        }
+
+        .btn-cancel {
+            background-color: #e0e0e0;
+            color: var(--text-color);
+        }
+
+        .btn-modal:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
@@ -473,39 +821,60 @@ input[type="submit"]:hover {
         
         <h1 class="dashboard-header">Sistem Rekam Kesehatan Digital</h1>
         
-        <?php if (isset($pesanSukses)): ?>
-            <div class="alert success"><?php echo $pesanSukses; ?></div>
-        <?php endif; ?>
-        
-        <?php if (isset($pesanError)): ?>
-            <div class="alert error"><?php echo $pesanError; ?></div>
-        <?php endif; ?>
-        
-        <form method="post" action="" class="search-container">
-            <?php if ($dataEdit): ?>
-                <input type="hidden" name="edit_id" value="<?php echo $dataEdit['id']; ?>">
-            <?php endif; ?>
-            <input type="text" name="nama" placeholder="Nama Siswa" value="<?php echo $dataEdit ? $dataEdit['nama'] : ''; ?>" required>
-            <input type="number" name="nis" placeholder="NIS" value="<?php echo $dataEdit ? $dataEdit['nis'] : ''; ?>" required>
-            <textarea name="keluhan" placeholder="Keluhan" required><?php echo $dataEdit ? $dataEdit['keluhan'] : ''; ?></textarea>
-            <textarea name="diagnosis" placeholder="Diagnosis" required><?php echo $dataEdit ? $dataEdit['diagnosis'] : ''; ?></textarea>
-            <textarea name="Pertolongan_Pertama" placeholder="Pertolongan Pertama" required><?php echo $dataEdit ? $dataEdit['Pertolongan_Pertama'] : ''; ?></textarea>
-            <div class="button-group">
-                <input type="submit" value="<?php echo $dataEdit ? 'Update Data' : 'Tambah Rekam Kesehatan'; ?>" class="btn-card">
-                <?php if ($dataEdit): ?>
-                    <a href="?" class="btn-card">Batal Edit</a>
-                <?php endif; ?>
+        <div class="search-container">
+    <form method="GET" action="" class="search-form">
+        <input type="text" name="search" placeholder="Cari siswa..." value="<?php echo htmlspecialchars($search); ?>">
+        <button type="submit" class="btn-search">Cari</button>
+    </form>
+    <div class="rekap-button-container">
+        <button onclick="openRekapModal()" class="btn-rekap">
+            <i class="fas fa-file-pdf"></i> Rekap Data
+        </button>
+    </div>
+</div>
+
+<!-- Modal Rekap -->
+<div id="rekapModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Rekap Data Rekam Kesehatan</h2>
+            <span class="close" onclick="closeRekapModal()">&times;</span>
+        </div>
+        <form method="POST" action="generate_pdf.php" target="_blank">
+            <div class="form-group">
+                <label>Pilih Periode</label>
+                <select name="periode" id="periode" class="form-control" onchange="toggleTanggal()">
+                    <option value="semua">Semua Data</option>
+                    <option value="hari">Per Hari</option>
+                    <option value="minggu">Per Minggu</option>
+                    <option value="bulan">Per Bulan</option>
+                    <option value="tahun">Per Tahun</option>
+                    <option value="custom">Periode Tertentu</option>
+                </select>
+            </div>
+
+            <div id="tanggalContainer" style="display:none;">
+                <div class="form-group">
+                    <label>Tanggal Mulai</label>
+                    <input type="date" name="tanggal_mulai" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Tanggal Selesai</label>
+                    <input type="date" name="tanggal_selesai" class="form-control">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-modal btn-cancel" onclick="closeRekapModal()">
+                    <i class="fas fa-times"></i> Batal
+                </button>
+                <button type="submit" class="btn-modal btn-save">
+                    <i class="fas fa-file-pdf"></i> Generate PDF
+                </button>
             </div>
         </form>
-        
-        <h2 class="dashboard-header">Daftar Rekam Kesehatan</h2>
-        
-        <div class="search-container">
-            <form method="GET" action="" class="search-form">
-                <input type="text" name="search" placeholder="Cari siswa..." value="<?php echo htmlspecialchars($search); ?>">
-                <button type="submit" class="btn-search">Cari</button>
-            </form>
-        </div>
+    </div>
+</div>
 
         <table class="content-table">
             <thead>
@@ -529,13 +898,125 @@ input[type="submit"]:hover {
                     <td><?php echo $rekam['diagnosis']; ?></td>
                     <td><?php echo $rekam['Pertolongan_Pertama']; ?></td>
                     <td>
-                        <a href="?edit=<?php echo $rekam['id']; ?>" class="btn-edit">Edit</a>
-                        <a href="hapusrekam.php?id=<?php echo $rekam['id']; ?>" class="btn-delete" onclick="return confirm('Anda yakin ingin menghapus data ini?');">Hapus</a>
+                        <a href="#" onclick="openEditModal(<?php echo htmlspecialchars(json_encode($rekam)); ?>)" class="icon-button edit" title="Edit">
+                            <i class="fas fa-pen"></i>
+                        </a>
+                        <a href="hapusrekam.php?id=<?php echo $rekam['id']; ?>" class="icon-button delete" title="Hapus" onclick="return confirm('Anda yakin ingin menghapus data ini?');">
+                            <i class="fas fa-trash"></i>
+                        </a>
                     </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
     </div>
+
+    <!-- Modal Edit -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Edit Rekam Kesehatan</h2>
+            <span class="close" onclick="closeEditModal()">&times;</span>
+        </div>
+        <form method="POST" action="">
+            <input type="hidden" id="edit_id" name="id">
+            <input type="hidden" name="update" value="true">
+            
+            <div class="form-group">
+                <label for="edit_nama">Nama Siswa</label>
+                <input type="text" id="edit_nama" name="nama" required 
+                       placeholder="Masukkan nama siswa">
+            </div>
+
+            <div class="form-group">
+                <label for="edit_nis">NIS</label>
+                <input type="number" id="edit_nis" name="nis" required
+                       placeholder="Masukkan NIS">
+            </div>
+
+            <div class="form-group">
+                <label for="edit_keluhan">Keluhan</label>
+                <textarea id="edit_keluhan" name="keluhan" required
+                          placeholder="Deskripsikan keluhan siswa"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_diagnosis">Diagnosis</label>
+                <textarea id="edit_diagnosis" name="diagnosis" required
+                          placeholder="Masukkan diagnosis"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="edit_pertolongan">Pertolongan Pertama</label>
+                <textarea id="edit_pertolongan" name="Pertolongan_Pertama" required
+                          placeholder="Deskripsikan pertolongan pertama yang diberikan"></textarea>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-modal btn-cancel" onclick="closeEditModal()">
+                    <i class="fas fa-times"></i> Batal
+                </button>
+                <button type="submit" class="btn-modal btn-save">
+                    <i class="fas fa-check"></i> Simpan Perubahan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+    <script>
+        // Fungsi untuk membuka modal edit
+        function openEditModal(data) {
+            document.getElementById('editModal').style.display = 'block';
+            document.getElementById('edit_id').value = data.id;
+            document.getElementById('edit_nama').value = data.nama;
+            document.getElementById('edit_nis').value = data.nis;
+            document.getElementById('edit_keluhan').value = data.keluhan;
+            document.getElementById('edit_diagnosis').value = data.diagnosis;
+            document.getElementById('edit_pertolongan').value = data.Pertolongan_Pertama;
+        }
+
+        // Fungsi untuk menutup modal
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        // Menutup modal ketika mengklik di luar modal
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('editModal')) {
+                closeEditModal();
+            }
+        }
+
+        function openRekapModal() {
+    document.getElementById('rekapModal').style.display = 'block';
+}
+
+function closeRekapModal() {
+    document.getElementById('rekapModal').style.display = 'none';
+}
+
+function toggleTanggal() {
+    const periode = document.getElementById('periode').value;
+    const tanggalContainer = document.getElementById('tanggalContainer');
+    
+    if (periode === 'custom') {
+        tanggalContainer.style.display = 'block';
+    } else {
+        tanggalContainer.style.display = 'none';
+    }
+}
+
+window.onclick = function(event) {
+    const rekapModal = document.getElementById('rekapModal');
+    const editModal = document.getElementById('editModal');
+    
+    if (event.target == rekapModal) {
+        closeRekapModal();
+    }
+    if (event.target == editModal) {
+        closeEditModal();
+    }
+}
+    </script>
 </body>
 </html>

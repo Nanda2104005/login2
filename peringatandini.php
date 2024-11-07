@@ -650,10 +650,6 @@
                     <button type="button" class="edit-button" onclick="closeEditModal()" style="background-color: #64748b;">
                         <i class="fas fa-times"></i> Batal
                     </button>
-
-                    <button class="edit-button" onclick="window.location.href='suratsakit_list.php'" style="background: #ff6b6b;">
-                    <i class="fas fa-file-pdf"></i> Cetak Surat Izin
-                    </button>
                 </form>
             </div>
         </div>
@@ -698,7 +694,7 @@
 
 
         function printSickLetter(id) {
-            window.open('suratsakit.php?id=' + id, '_blank');
+            window.open('suratsakit_list.php?id=' + id, '_blank');
         }
     </script>
     </body>

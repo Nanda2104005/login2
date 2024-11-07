@@ -340,24 +340,6 @@ tr:hover {
         <header>
             <h1><i class="fas fa-heartbeat"></i> Monitoring Kesehatan Siswa</h1>
         </header>
-        
-        <div class="dashboard">
-            <div class="card">
-                <i class="fas fa-user-graduate"></i>
-                <h3>Total Siswa</h3>
-                <p id="totalSiswa">0</p>
-            </div>
-            <div class="card">
-                <i class="fas fa-procedures"></i>
-                <h3>Siswa Sakit</h3>
-                <p id="siswaSakit">0</p>
-            </div>
-            <div class="card">
-                <i class="fas fa-temperature-high"></i>
-                <h3>Rata-rata Suhu</h3>
-                <p id="ratarataSuhu">0°C</p>
-            </div>
-        </div>
 
        <table>
     <tr>

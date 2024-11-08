@@ -26,23 +26,19 @@ if (isset($_POST['login'])) {
     $username = mysqli_real_escape_string($conn, $_POST['username']);
     $password = md5($_POST['password']);
 
-    // Query untuk cek user di database
     $sql = "SELECT * FROM users WHERE username='$username' AND password='$password'";
     $result = mysqli_query($conn, $sql);
 
-    // Cek apakah user ditemukan
     if (mysqli_num_rows($result) > 0) {
         $row = mysqli_fetch_assoc($result);
         $_SESSION['username'] = $row['username'];
         $_SESSION['role'] = $row['role'];
-        $_SESSION['user_id'] = $row['id']; // Tambahkan user_id jika ada
+        $_SESSION['user_id'] = $row['id'];
         
-        // Set cookie jika opsi "Remember me" diaktifkan
         if (isset($_POST['remember'])) {
             setcookie('username', $username, time() + (86400 * 30), "/");
         }
 
-        // Arahkan ke halaman home
         header("Location: home.php");
         exit();
     } else {
@@ -51,26 +47,38 @@ if (isset($_POST['login'])) {
 }
 
 // Proses Pendaftaran
-
 if (isset($_POST['register'])) {
-    $username = $_POST['username'];
-    $email = $_POST['email'];
-    $nama_lengkap = $_POST['nama_lengkap'];
+    $username = mysqli_real_escape_string($conn, $_POST['username']);
+    $nis = mysqli_real_escape_string($conn, $_POST['nis']);
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $nama_lengkap = mysqli_real_escape_string($conn, $_POST['nama_lengkap']);
     $password = md5($_POST['password']);
     $role = 'siswa';
 
-    $checkUser = "SELECT * FROM users WHERE username='$username'";
-    $result = mysqli_query($conn, $checkUser);
-    
-    if (mysqli_num_rows($result) > 0) {
-        $error = "Username sudah terdaftar!";
+    // Validasi format NIS
+    if (!preg_match("/^[0-9]{5,20}$/", $nis)) {
+        $error = "NIS harus berupa angka dengan panjang 5-20 digit!";
     } else {
-        $sql = "INSERT INTO users (username, email, nama_lengkap, password, role) VALUES ('$username', '$email', '$nama_lengkap', '$password', '$role')";
+        // Cek username dan NIS sudah terdaftar atau belum
+        $checkUser = "SELECT * FROM users WHERE username='$username' OR nis='$nis'";
+        $result = mysqli_query($conn, $checkUser);
         
-        if (mysqli_query($conn, $sql)) {
-            $success = "Pendaftaran berhasil! Silakan login.";
+        if (mysqli_num_rows($result) > 0) {
+            $row = mysqli_fetch_assoc($result);
+            if ($row['username'] === $username) {
+                $error = "Username sudah terdaftar!";
+            } else {
+                $error = "NIS sudah terdaftar!";
+            }
         } else {
-            $error = "Terjadi kesalahan, coba lagi.";
+            $sql = "INSERT INTO users (username, nis, email, nama_lengkap, password, role) 
+                   VALUES ('$username', '$nis', '$email', '$nama_lengkap', '$password', '$role')";
+            
+            if (mysqli_query($conn, $sql)) {
+                $success = "Pendaftaran berhasil! Silakan login dengan username dan password Anda.";
+            } else {
+                $error = "Terjadi kesalahan, coba lagi.";
+            }
         }
     }
 }
@@ -445,55 +453,84 @@ html {
             <div class="message success"><?= $success ?></div>
         <?php endif; ?>
 
-        <?php if (!isset($_GET['register'])): ?>
-            <h2>Welcome to M3 Care</h2>
-            <form method="post" action="">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" value="<?php if(isset($_COOKIE['username'])) { echo $_COOKIE['username']; } ?>" required>
-                
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
-                
-                <label for="remember">
-                    <input type="checkbox" id="remember" name="remember" <?php if(isset($_COOKIE['username'])) { echo "checked"; } ?>>
-                    Remember me
-                </label>
+       <!-- Form Login -->
+<?php if (!isset($_GET['register'])): ?>
+    <h2>Welcome to M3 Care</h2>
+    <form method="post" action="" class="animate-form">
+        <div class="input-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" 
+                   value="<?php if(isset($_COOKIE['username'])) { echo $_COOKIE['username']; } ?>"
+                   required placeholder="Masukkan username">
+        </div>
+        
+        <div class="input-group password-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" 
+                   required placeholder="Masukkan password">
+            <span class="password-toggle" id="passwordToggle">
+                <i class="far fa-eye"></i>
+            </span>
+        </div>
+        
+        <label for="remember">
+            <input type="checkbox" id="remember" name="remember" 
+                   <?php if(isset($_COOKIE['username'])) { echo "checked"; } ?>>
+            Remember me
+        </label>
 
-                <button type="submit" name="login">Login</button>
-                <p class="auth-switch">New to M3 Care? <a href="?register=1">Sign Up</a></p>
-            </form>
-        <?php else: ?>
-            
-            <h2 class="fade-in">Join M3 Care</h2>
-<form method="post" action="" class="animate-form">
-    <div class="input-group slide-up">
-        <label for="nama_lengkap">Nama Lengkap</label>
-        <input type="text" id="nama_lengkap" name="nama_lengkap" required class="fade-in">
-    </div>
+        <button type="submit" name="login">Login</button>
+        <p class="auth-switch">New to M3 Care? <a href="?register=1">Sign Up</a></p>
+    </form>
 
-    <div class="input-group slide-up">
-        <label for="username">Username</label>
-        <input type="text" id="username" name="username" required class="fade-in">
-    </div>
-    
-    <div class="input-group slide-up">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required class="fade-in">
-    </div>
-    
-    <div class="input-group password-group slide-up">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required class="fade-in">
-        <span class="password-toggle" id="passwordToggle">
-            <i class="far fa-eye"></i>
-        </span>
-    </div>
-    
-    <button type="submit" name="register" class="slide-up">Sign Up</button>
-    <p class="auth-switch fade-in">Already have an account? <a href="login.php">Login</a></p>
-</form>
-        <?php endif; ?>
-    </div>
+<!-- Form Register -->
+<?php else: ?>
+    <h2 class="fade-in">Join M3 Care</h2>
+    <form method="post" action="" class="animate-form">
+        <div class="input-group slide-up">
+            <label for="nama_lengkap">Nama Lengkap</label>
+            <input type="text" id="nama_lengkap" name="nama_lengkap" 
+                   required placeholder="Masukkan nama lengkap"
+                   class="fade-in">
+        </div>
+
+        <div class="input-group slide-up">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" 
+                   required placeholder="Masukkan username"
+                   class="fade-in">
+        </div>
+
+        <div class="input-group slide-up">
+            <label for="nis">NIS</label>
+            <input type="text" id="nis" name="nis" required 
+                   placeholder="Masukkan Nomor Induk Siswa" 
+                   pattern="[0-9]{5,20}" 
+                   title="NIS harus berupa angka dengan panjang 5-20 digit"
+                   class="fade-in">
+        </div>
+        
+        <div class="input-group slide-up">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" 
+                   required placeholder="Masukkan email"
+                   class="fade-in">
+        </div>
+        
+        <div class="input-group password-group slide-up">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" 
+                   required placeholder="Masukkan password"
+                   class="fade-in">
+            <span class="password-toggle" id="passwordToggle">
+                <i class="far fa-eye"></i>
+            </span>
+        </div>
+        
+        <button type="submit" name="register" class="slide-up">Sign Up</button>
+        <p class="auth-switch fade-in">Already have an account? <a href="login.php">Login</a></p>
+    </form>
+<?php endif; ?>
 
     <script>
         const switchButton = document.getElementById('themeSwitch');

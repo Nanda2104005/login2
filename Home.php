@@ -1,4 +1,5 @@
 
+
 <?php
 
 session_start();
@@ -99,30 +100,36 @@ if ($_SERVER['PHP_SELF'] === '/manajemen_kesehatan.php' ||
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
         
         :root {
-            --primary-color: #1ca883;
-            --primary-dark: #158a6d;
-            --secondary-color: #f0f9f6;
-            --accent-color: #ff6b6b;
-            --text-color: #2c3e50;
-            --card-hover: #e8f5f1;
-            --glass-bg: rgba(255, 255, 255, 0.95);
-            --glass-border: rgba(255, 255, 255, 0.18);
+    --primary-color: #1ca883;
+    --primary-dark: #158a6d;
+    --secondary-color: #f0f9f6;
+    --accent-color: #ff6b6b;
+    --text-color: #2c3e50;
+    --card-hover: #e8f5f1;
+    --glass-bg: rgba(255, 255, 255, 0.95);
+    --glass-border: rgba(255, 255, 255, 0.18);
         }
 
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+        }    
 
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-            line-height: 1.6;
-            overflow-x: hidden;
-            margin-right: 300px;
-        }
+        /* Updated: Added flex layout and min-height for better footer positioning */
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    line-height: 1.6;
+    overflow-x: hidden;
+    margin-right: 300px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
 
         /* Animated Background */
         .bg-animation {

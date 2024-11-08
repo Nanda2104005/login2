@@ -343,7 +343,8 @@ $role = $_SESSION['role'];
 
 <div class="container">
     <div class="dashboard-header">
-        <h2>Sistem Informasi Kesehatan Sekolah (SIKS)</h2>
+        <h2>Sistem Informasi Kesehatan Sekolah</h2>
+        <h2> SMA Muhammadiyah 3 Jember</h2>
     </div>
     <div class="dashboard-grid">
         <?php if ($role === 'admin'): ?>
@@ -405,10 +406,21 @@ $role = $_SESSION['role'];
                 <i class="fas fa-save save-icon"></i>
                 <div>
                     <h3><i class="fas fa-save"></i>Inventaris Kesehatan</h3>
-                    <p>Disini anda bisa melihat foto dan video kalian yang sudah kalian simpan.</p>
+                    <p>Disini anda bisa melihat barang barang simpan.</p>
                 </div>
                 <a href="inventaris_uks.php" class="btn-card">Buka Inventaris Kesehatan</a>
             </div>
+
+            <div class="dashboard-card">
+                <i class="fas fa-save save-icon"></i>
+                <div>
+                    <h3><i class="fas fa-save"></i>Daftar Users</h3>
+                    <p>Disini anda bisa melihat akun.</p>
+                </div>
+                <a href="userslist.php" class="btn-card">Buka Users List</a>
+            </div>
+
+
         <?php endif; ?>
 
         <?php if ($role === 'siswa'): ?>

@@ -821,14 +821,13 @@ if (!empty($search)) {
         
         <h1 class="dashboard-header">Sistem Rekam Kesehatan Digital</h1>
         
-        <div class="search-container">
-    <form method="GET" action="" class="search-form">
+        <form method="GET" action="" class="search-form">
         <input type="text" name="search" placeholder="Cari siswa..." value="<?php echo htmlspecialchars($search); ?>">
         <button type="submit" class="btn-search">Cari</button>
+        <button type="button" onclick="openRekapModal()" class="btn-rekap">
+            <i class="fas fa-file-pdf"></i> Cetak PDF
+        </button>
     </form>
-    <div class="rekap-button-container">
-        <button onclick="openRekapModal()" class="btn-rekap">
-            <i class="fas fa-file-pdf"></i> Rekap Data
         </button>
     </div>
 </div>

@@ -6,6 +6,8 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
+// haloo
+
 $role = $_SESSION['role'];
 ?>
 
@@ -315,6 +317,40 @@ $role = $_SESSION['role'];
             width: device-width;
             zoom: 1.0;
         }
+
+        /* Style untuk tombol kembali */
+.btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1.5rem;
+    background: linear-gradient(135deg, var(--primary-color), #159f7f);
+    color: white;
+    text-decoration: none;
+    border-radius: 25px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+}
+
+.btn-back:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-back i {
+    font-size: 1.1rem;
+}
+
+/* Mengubah posisi container untuk tombol */
+.button-container {
+    grid-column: span 12;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
     </style>
 </head>
 <body>
@@ -340,6 +376,7 @@ $role = $_SESSION['role'];
         </a>
     </div>
 </nav>
+
 
 <div class="container">
     <div class="dashboard-header">
@@ -419,6 +456,8 @@ $role = $_SESSION['role'];
                 </div>
                 <a href="userslist.php" class="btn-card">Buka Users List</a>
             </div>
+
+            
 
 
         <?php endif; ?>

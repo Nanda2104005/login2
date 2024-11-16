@@ -306,7 +306,7 @@ body {
 
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
             gap: 2rem;
             margin-top: 2rem;
         }
@@ -639,12 +639,11 @@ body {
             }
             
             .features-grid {
-                grid-template-columns: 1fr;
-                padding: 1rem;
+                padding: 0 1rem;
             }
             
             .feature-card {
-                margin-bottom: 1rem;
+                flex: 0 0 280px;
             }
             
             .stats-grid {
@@ -694,9 +693,28 @@ body {
     text-decoration: none;
 }
 
-.btn-start:hover {
+       .btn-start:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+}
+
+/* Responsive Design untuk Feature Cards */
+@media (max-width: 1200px) {
+    .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .features-grid {
+        grid-template-columns: 1fr;
+        padding: 0;
+    }
+    
+    .feature-card {
+        margin: 0 auto;
+        max-width: 100%;
+    }
 }
         
 

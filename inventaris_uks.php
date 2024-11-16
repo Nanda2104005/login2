@@ -281,132 +281,53 @@ try {
             align-items: center;
         }
 
-        .btn-edit {
-            background: linear-gradient(135deg, #3498db, #2980b9);
-            color: white;
+        .btn-edit,
+        .btn-delete {
+            min-width: 40px;
+            height: 40px;
             border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 500;
+            font-size: 1rem;
             display: flex;
             align-items: center;
-            gap: 4px;
+            justify-content: center;
+            padding: 0 12px;
             transition: all 0.3s ease;
+            color: white;
         }
 
-        .btn-edit:hover {
-            background: linear-gradient(135deg, #2980b9, #2471a3);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2);
+        .btn-edit {
+            background: #3498db;
         }
 
         .btn-delete {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.3s ease;
+            background: #e74c3c;
+        }
+
+        .btn-edit:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2);
         }
 
         .btn-delete:hover {
-            background: linear-gradient(135deg, #c0392b, #a93226);
-            transform: translateY(-1px);
+            background: #c0392b;
+            transform: translateY(-2px);
             box-shadow: 0 4px 6px rgba(231, 76, 60, 0.2);
         }
 
-        /* Status Badges */
-        .status-badge {
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            text-align: center;
-            display: inline-block;
-        }
-
-        .status-baik {
-            background-color: #def7ec;
-            color: #0e9f6e;
-        }
-
-        .status-rusak {
-            background-color: #fde8e8;
-            color: #e02424;
-        }
-
-        .status-habis {
-            background-color: #fdf6b2;
-            color: #c27803;
-        }
-
-        /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            overflow-y: auto;
-        }
-
-        .modal-content {
-            position: relative;
-            background-color: #fff;
-            margin: 5% auto;
-            padding: 20px;
-            width: 70%;
-            border-radius: 10px;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .close {
-            position: absolute;
-            right: 20px;
-            top: 10px;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #666;
-        }
-
-        .close:hover {
-            color: #333;
-        }
-
-        /* Responsive Design */
+        /* Responsive design for buttons */
         @media screen and (max-width: 768px) {
-            .container {
-                padding: 0 1rem;
-            }
-
             .action-buttons {
-                flex-direction: column;
-                gap: 4px;
+                flex-direction: row;
+                gap: 8px;
             }
 
             .btn-edit,
             .btn-delete {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .modal-content {
-                width: 90%;
-                margin: 10% auto;
+                min-width: 40px;
+                padding: 0;
             }
         }
     </style>
@@ -557,19 +478,19 @@ try {
                                 <td><?php echo htmlspecialchars($item['lokasi']); ?></td>
                                 <td><?php echo htmlspecialchars($item['keterangan'] ?: '-'); ?></td>
                                 <td class="action-buttons">
-                                    <button onclick="editItem(<?php echo htmlspecialchars(json_encode($item)); ?>)" 
-                                            class="btn-edit">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </button>
-                                    <form method="POST" style="display: inline;" 
-                                          onsubmit="return confirm('Apakah Anda yakin ingin menghapus item ini?');">
-                                        <input type="hidden" name="delete" value="1">
-                                        <input type="hidden" name="id_barang" value="<?php echo $item['id_barang']; ?>">
-                                        <button type="submit" class="btn-delete">
-                                            <i class="fas fa-trash"></i> Hapus
-                                        </button>
-                                    </form>
-                                </td>
+        <button onclick="editItem(<?php echo htmlspecialchars(json_encode($item)); ?>)" 
+                class="btn-edit" title="Edit">
+            <i class="fas fa-pen"></i>
+        </button>
+        <form method="POST" style="display: inline;" 
+              onsubmit="return confirm('Apakah Anda yakin ingin menghapus item ini?');">
+            <input type="hidden" name="delete" value="1">
+            <input type="hidden" name="id_barang" value="<?php echo $item['id_barang']; ?>">
+            <button type="submit" class="btn-delete" title="Hapus">
+                <i class="fas fa-trash"></i>
+            </button>
+        </form>
+    </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

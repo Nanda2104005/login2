@@ -1,5 +1,8 @@
 <?php
-session_start();
+// Cek apakah session sudah dimulai sebelum memanggil session_start()
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Fungsi untuk mengecek apakah user sudah login
 function isLoggedIn() {

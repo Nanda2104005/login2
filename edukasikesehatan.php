@@ -1,4 +1,7 @@
 <?php
+// Pastikan session sudah dimulai di awal file
+session_start();
+
 // Koneksi ke database
 $conn = new mysqli("localhost", "root", "", "user_database");
 
@@ -28,6 +31,13 @@ $upload_dir = "uploads/";
 if (!file_exists($upload_dir)) {
     mkdir($upload_dir, 0777, true);
 }
+
+// Cek apakah user sudah login
+if (!isset($_SESSION['user_id'])) {
+    die("Anda harus login terlebih dahulu");
+}
+
+$user_id = $_SESSION['user_id'];
 
 // Proses form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -72,10 +82,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // Simpan ke database
-    $sql = "INSERT INTO edukasi_kesehatan (judul, konten, gambar, video, video_file) VALUES (?, ?, ?, ?, ?)";
+    // Simpan ke database dengan user_id
+    $sql = "INSERT INTO edukasi_kesehatan (judul, konten, gambar, video, video_file, user_id) VALUES (?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssss", $judul, $konten, $gambar, $video, $video_file);
+    $stmt->bind_param("sssssi", $judul, $konten, $gambar, $video, $video_file, $user_id);
 
     if ($stmt->execute()) {
         $success_message = "Data berhasil disimpan.";
@@ -86,9 +96,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->close();
 }
 
-// Ambil data dari database
-$sql = "SELECT * FROM edukasi_kesehatan ORDER BY id DESC LIMIT 1";
-$result = $conn->query($sql);
+// Ambil data dari database (sesuaikan dengan user_id)
+$sql = "SELECT * FROM edukasi_kesehatan WHERE user_id = ? ORDER BY id DESC LIMIT 1";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
 $row = $result->fetch_assoc();
 
 $judul = $row['judul'] ?? '';
@@ -97,6 +110,7 @@ $gambar = $row['gambar'] ?? '';
 $video = $row['video'] ?? '';
 $video_file = $row['video_file'] ?? '';
 
+$stmt->close();
 $conn->close();
 ?>
 
@@ -110,162 +124,284 @@ $conn->close();
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #1ca883;
-            --secondary-color: #f0f9f6;
-            --accent-color: #ff6b6b;
-            --text-color: #2c3e50;
-            --background-color: #ecf0f1;
-            --card-hover: #e8f5f1;
-            --danger-color: #e74c3c;
-        }
+    --primary-color: #1ca883;
+    --primary-dark: #159f7f;
+    --primary-light: #e8f5f1;
+    --secondary-color: #f0f9f6;
+    --accent-color: #ff6b6b;
+    --text-color: #2c3e50;
+    --background-color: #ecf0f1;
+    --card-hover: #e8f5f1;
+    --danger-color: #e74c3c;
+    --white: #ffffff;
+    --shadow: 0 10px 30px rgba(28, 168, 131, 0.1);
+    --transition: all 0.3s ease;
+}
 
-        body {
-            font-family: 'Poppins', sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background-color: var(--background-color);
-            color: var(--text-color);
-            padding-bottom: 60px;
-        }
+body {
+    font-family: 'Poppins', sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, var(--background-color) 0%, var(--primary-light) 100%);
+    color: var(--text-color);
+    padding-bottom: 60px;
+    min-height: 100vh;
+}
 
-        .container {
-            max-width: 1000px;
-            margin: 2rem auto;
-            padding: 2rem;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(28, 168, 131, 0.1);
-        }
+.container {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: var(--white);
+    border-radius: 25px;
+    box-shadow: var(--shadow);
+}
 
-        header {
-            background: linear-gradient(135deg, var(--primary-color), #159f7f);
-            color: white;
-            text-align: center;
-            padding: 1rem;
-            border-radius: 20px 20px 0 0;
-            margin: -2rem -2rem 2rem -2rem;
-        }
+header {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: var(--white);
+    text-align: center;
+    padding: 2rem;
+    border-radius: 20px 20px 0 0;
+    margin: -2rem -2rem 2rem -2rem;
+    position: relative;
+    overflow: hidden;
+}
 
-        h1 {
-            margin: 0;
-            font-size: 2.5rem;
-        }
+header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1));
+    pointer-events: none;
+}
 
-        form {
-            display: grid;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
+h1 {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
 
-        input[type="text"], textarea {
-            width: 100%;
-            padding: 0.8rem;
-            border: 1px solid var(--secondary-color);
-            border-radius: 10px;
-            font-family: 'Poppins', sans-serif;
-        }
+form {
+    display: grid;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    background: var(--white);
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
 
-        input[type="file"] {
-            width: 100%;
-            padding: 0.8rem;
-            border: 1px solid var(--secondary-color);
-            border-radius: 10px;
-            background-color: white;
-        }
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
 
-        .btn {
-            padding: 0.8rem 1.5rem;
-            background: linear-gradient(135deg, var(--accent-color), #ff8f8f);
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
+.form-group label {
+    font-weight: 500;
+    color: var(--text-color);
+    font-size: 0.95rem;
+}
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
-        }
+input[type="text"], 
+textarea {
+    width: 100%;
+    padding: 1rem;
+    border: 2px solid var(--secondary-color);
+    border-radius: 12px;
+    font-family: 'Poppins', sans-serif;
+    transition: var(--transition);
+    background: var(--white);
+    color: var(--text-color);
+}
 
-        .message {
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border-radius: 10px;
-            font-weight: 500;
-        }
+input[type="text"]:focus, 
+textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(28, 168, 131, 0.1);
+    outline: none;
+}
 
-        .success {
-            background-color: var(--secondary-color);
-            color: var(--primary-color);
-        }
+input[type="file"] {
+    width: 100%;
+    padding: 1rem;
+    border: 2px dashed var(--primary-color);
+    border-radius: 12px;
+    background-color: var(--primary-light);
+    cursor: pointer;
+    transition: var(--transition);
+}
 
-        .error {
-            background-color: #fde2e2;
-            color: var(--danger-color);
-        }
+input[type="file"]:hover {
+    background-color: var(--secondary-color);
+}
 
-        .video-container {
-            position: relative;
-            padding-bottom: 56.25%;
-            height: 0;
-            overflow: hidden;
-            margin-top: 1rem;
-            border-radius: 10px;
-        }
+.btn {
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: var(--white);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.8rem;
+    justify-content: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.9rem;
+}
 
-        .video-container iframe,
-        .video-container video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border-radius: 10px;
-        }
+.btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(28, 168, 131, 0.2);
+}
 
-        .video-upload-container {
-            margin-top: 1rem;
-        }
+.message {
+    padding: 1.2rem;
+    margin-bottom: 1.5rem;
+    border-radius: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
 
-        .video-source-selector {
-            margin-bottom: 1rem;
-        }
+.success {
+    background-color: var(--primary-light);
+    color: var(--primary-dark);
+    border-left: 4px solid var(--primary-color);
+}
 
-        .video-source-selector label {
-            margin-right: 1rem;
-        }
+.error {
+    background-color: #fde2e2;
+    color: var(--danger-color);
+    border-left: 4px solid var(--danger-color);
+}
 
-        img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 10px;
-            margin-top: 1rem;
-        }
+.video-container {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    margin-top: 1.5rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
 
-        
+.video-container iframe,
+.video-container video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 15px;
+}
 
-        footer {
-            background: linear-gradient(135deg, var(--primary-color), #159f7f);
-            color: white;
-            text-align: center;
-            padding: 1rem 0;
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        }
+.video-upload-container {
+    margin-top: 1.5rem;
+}
 
+.video-source-selector {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--secondary-color);
+    border-radius: 12px;
+}
 
+.video-source-selector label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 15px;
+    margin-top: 1.5rem;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+footer {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: var(--white);
+    text-align: center;
+    padding: 1.2rem 0;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+
+/* Tambahkan tombol kembali */
+.btn-back {
+    position: fixed;
+    top: 2rem;
+    left: 2rem;
+    padding: 0.8rem 1.5rem;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: var(--white);
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.btn-back:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+}
+
+/* Responsif */
+@media (max-width: 768px) {
+    .container {
+        margin: 1rem;
+        padding: 1rem;
+    }
+
+    header {
+        padding: 1.5rem;
+    }
+
+    h1 {
+        font-size: 2rem;
+    }
+
+    .btn-back {
+        top: 1rem;
+        left: 1rem;
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+    }
+}
         
     </style>
 </head>
 <body>
+    <a href="dashboard.php" class="btn-back">
+    <i class="fas fa-arrow-left"></i>
+    Kembali ke Dashboard
+</a>
     <div class="container">
         <header>
             <h1>Edukasi Kesehatan</h1>

@@ -6,15 +6,15 @@ function checkLoginStatus() {
     if (!isset($_SESSION['username'])) {
         session_unset();
         session_destroy();
-        
         if (isset($_COOKIE['username'])) {
             setcookie('username', '', time() - 3600, '/');
         }
-
         header("Location: login.php?message=Silakan login untuk mengakses halaman ini");
         exit();
     }
 }
+
+checkLoginStatus();
 
 // Konfigurasi Koneksi Database
 $server = 'localhost';
@@ -27,30 +27,47 @@ if (!$conn) {
     die("Koneksi gagal: " . mysqli_connect_error());
 }
 
-// Function to get student data
-function getStudentData($conn, $search, $type) {
-    if ($type === 'nis') {
-        $stmt = $conn->prepare("SELECT nama, nis FROM users WHERE nis = ?");
-    } else {
-        $stmt = $conn->prepare("SELECT nama, nis FROM users WHERE nama LIKE ?");
-        $search = "%$search%";
-    }
-    
-    $stmt->bind_param("s", $search);
+// Function untuk mendapatkan user_id
+function getUserId($conn, $username) {
+    $stmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
+    $stmt->bind_param("s", $username);
     $stmt->execute();
     $result = $stmt->get_result();
-    
-    if ($result->num_rows > 0) {
-        $data = $result->fetch_assoc();
-        header('Content-Type: application/json');
-        echo json_encode($data);
-    } else {
-        header('Content-Type: application/json');
-        echo json_encode(null);
+    if ($row = $result->fetch_assoc()) {
+        return $row['id'];
     }
-    $stmt->close();
+    return null;
 }
 
+// Function untuk mendapatkan data siswa
+function getStudentData($conn, $search, $type) {
+    try {
+        if ($type === 'nis') {
+            $stmt = $conn->prepare("SELECT nama_lengkap as nama, nis FROM users WHERE nis = ?");
+            $stmt->bind_param("s", $search);
+        } else {
+            $search = "%$search%";
+            $stmt = $conn->prepare("SELECT nama_lengkap as nama, nis FROM users WHERE nama_lengkap LIKE ?");
+            $stmt->bind_param("s", $search);
+        }
+        
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows > 0) {
+            $data = $result->fetch_assoc();
+            header('Content-Type: application/json');
+            echo json_encode($data);
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(null);
+        }
+        $stmt->close();
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => $e->getMessage()]);
+    }
+}
 // Handle AJAX requests
 if (isset($_GET['action']) && $_GET['action'] === 'getStudent') {
     if (isset($_GET['nis'])) {
@@ -62,13 +79,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'getStudent') {
     }
 }
 
-// Inisialisasi pesan
 $pesanSukses = "";
 $pesanError = "";
 
-// Proses form jika di-submit
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Menggunakan htmlspecialchars untuk mencegah XSS
     $nama = isset($_POST['nama']) ? htmlspecialchars(trim($_POST['nama'])) : '';
     $nis = isset($_POST['nis']) ? htmlspecialchars(trim($_POST['nis'])) : '';
     $kelas = isset($_POST['kelas']) ? htmlspecialchars(trim($_POST['kelas'])) : '';
@@ -78,77 +93,117 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $diagnosis = isset($_POST['diagnosis']) ? htmlspecialchars(trim($_POST['diagnosis'])) : '';
     $pertolongan = isset($_POST['pertolongan']) ? htmlspecialchars(trim($_POST['pertolongan'])) : '';
 
-    // Validasi input
-    if (empty($nama) || empty($nis) || empty($kelas) || empty($suhu) || empty($status)) {
-        $pesanError = "Mohon lengkapi semua data yang diperlukan.";
-    } else {
+    try {
+        $user_id = getUserId($conn, $_SESSION['username']);
+        if (!$user_id) {
+            throw new Exception("User ID tidak ditemukan.");
+        }
+
+        if (empty($nama) || empty($nis) || empty($kelas) || empty($suhu) || empty($status)) {
+            throw new Exception("Mohon lengkapi semua data yang diperlukan.");
+        }
+
         // Begin transaction
         $conn->begin_transaction();
+
+        // 1. Insert ke pengingatobat terlebih dahulu
+        $stmtPengingat = $conn->prepare("INSERT INTO pengingatobat 
+            (patient_id, condition_name, severity, user_id) 
+            VALUES (?, ?, ?, ?)");
         
-        try {
-            // Cek apakah nis sudah ada di tabel monitoringkesehatan
-            $cekNis = $conn->prepare("SELECT nis FROM monitoringkesehatan WHERE nis = ?");
-            $cekNis->bind_param("s", $nis);
-            $cekNis->execute();
-            $cekNis->store_result();
-
-            if ($cekNis->num_rows > 0) {
-                throw new Exception("NIS ini sudah ada dalam rekam kesehatan.");
-            }
-
-            $stmt = $conn->prepare("INSERT INTO monitoringkesehatan (nama, nis, keluhan, diagnosis, kelas, suhu, status, pertolongan_pertama) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            if ($stmt === false) {
-                throw new Exception("Prepare failed: (" . $conn->errno . ") " . $conn->error);
-            }
-            
-            $stmt->bind_param("sssssdss", $nama, $nis, $keluhan, $diagnosis, $kelas, $suhu, $status, $pertolongan);
-            // Changed 'sssssds' to 'sssssdss' to match the number of parameters
-            if (!$stmt->execute()) {
-                throw new Exception("Error: " . $stmt->error);
-            }
-            $stmt->close();
-
-            // Insert into rekam_kesehatan with pertolongan_pertama
-            $stmtRekam = $conn->prepare("INSERT INTO rekam_kesehatan (nama, nis, keluhan, diagnosis, pertolongan_pertama) 
-                           VALUES (?, ?, ?, ?, ?)");
-            if ($stmtRekam === false) {
-                throw new Exception("Prepare failed: (" . $conn->errno . ") " . $conn->error);
-            }
-            
-            $stmtRekam->bind_param("sssss", $nama, $nis, $keluhan, $diagnosis, $pertolongan);
-            if (!$stmtRekam->execute()) {
-                throw new Exception("Error: " . $stmtRekam->error);
-            }
-            $stmtRekam->close();
-
-            // If everything is successful, commit the transaction
-            $conn->commit();
-            $pesanSukses = "Data berhasil ditambahkan ke monitoring dan rekam kesehatan!";
-            
-        } catch (Exception $e) {
-            // If there's an error, rollback the transaction
-            $conn->rollback();
-            $pesanError = $e->getMessage();
+        $patient_id = $nis;
+        $condition_name = $status == 'Sakit' ? $diagnosis : 'Sehat';
+        $severity = $status == 'Sakit' ? 'Medium' : 'Low';
+        
+        $stmtPengingat->bind_param("sssi", 
+            $patient_id, $condition_name, $severity, $user_id
+        );
+        
+        if (!$stmtPengingat->execute()) {
+            throw new Exception("Error executing pengingat statement: " . $stmtPengingat->error);
         }
+        
+        $pengingat_id = $stmtPengingat->insert_id;
+        $stmtPengingat->close();
 
-        if (isset($cekNis)) {
-            $cekNis->close();
-        }
-    }
+        // Di bagian insert ke monitoringkesehatan, ubah query-nya menjadi:
+$stmt = $conn->prepare("INSERT INTO monitoringkesehatan 
+(nama, nis, keluhan, diagnosis, kelas, suhu, status, pertolongan_pertama, pengingat_id, user_id) 
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+if (!$stmt) {
+throw new Exception("Error preparing monitoring statement: " . $conn->error);
 }
 
-// Mengambil data dari tabel untuk ditampilkan
-$daftarRekamKesehatan = [];
-$result = $conn->query("SELECT * FROM monitoringkesehatan ORDER BY id DESC");
-if ($result) {
-    if ($result->num_rows > 0) {
-        while($row = $result->fetch_assoc()) {
-            $daftarRekamKesehatan[] = $row;
+$stmt->bind_param("sssssdssii", 
+$nama, $nis, $keluhan, $diagnosis, $kelas, $suhu, $status, $pertolongan, $pengingat_id, $user_id
+);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Error executing monitoring statement: " . $stmt->error);
         }
+        
+        $monitoring_id = $stmt->insert_id;
+        $stmt->close();
+
+        // 3. Update pengingatobat dengan monitoring_id
+        $stmtUpdatePengingat = $conn->prepare("UPDATE pengingatobat SET monitoring_id = ? WHERE id = ?");
+        $stmtUpdatePengingat->bind_param("ii", $monitoring_id, $pengingat_id);
+        
+        if (!$stmtUpdatePengingat->execute()) {
+            throw new Exception("Error updating pengingat with monitoring_id: " . $stmtUpdatePengingat->error);
+        }
+        $stmtUpdatePengingat->close();
+
+        // 4. Insert ke rekam_kesehatan
+        $stmtRekam = $conn->prepare("INSERT INTO rekam_kesehatan 
+            (nama, nis, keluhan, diagnosis, Pertolongan_Pertama, user_id) 
+            VALUES (?, ?, ?, ?, ?, ?)");
+        
+        if (!$stmtRekam) {
+            throw new Exception("Error preparing rekam statement: " . $conn->error);
+        }
+
+        $stmtRekam->bind_param("sssssi", 
+            $nama, $nis, $keluhan, $diagnosis, $pertolongan, $user_id
+        );
+        
+        if (!$stmtRekam->execute()) {
+            throw new Exception("Error executing rekam statement: " . $stmtRekam->error);
+        }
+        $stmtRekam->close();
+
+        // Commit transaction
+        $conn->commit();
+        $pesanSukses = "Data berhasil ditambahkan!";
+
+    } catch (Exception $e) {
+        if ($conn && $conn->connect_error === null) {
+            $conn->rollback();
+        }
+        $pesanError = $e->getMessage();
     }
-} else {
-    $pesanError = "Error fetching data: " . $conn->error;
+}
+// Bagian menampilkan data
+$daftarRekamKesehatan = [];
+try {
+    $query = "SELECT m.*, u.nama_lengkap 
+              FROM monitoringkesehatan m 
+              LEFT JOIN users u ON m.user_id = u.id 
+              ORDER BY m.id DESC";
+    $result = $conn->query($query);
+    
+    if ($result === false) {
+        throw new Exception($conn->error);
+    }
+    
+    while($row = $result->fetch_assoc()) {
+        $daftarRekamKesehatan[] = $row;
+    }
+    $result->close();
+    
+} catch (Exception $e) {
+    $pesanError = "Error mengambil data: " . $e->getMessage();
 }
 ?>
 
@@ -161,279 +216,318 @@ if ($result) {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" rel="stylesheet">
     <style>
-        :root {
-            --primary-color: #1ca883;
-            --secondary-color: #f0f9f6;
-            --accent-color: #ff6b6b;
-            --text-color: #2c3e50;
-            --background-color: #ecf0f1;
-            --card-hover: #e8f5f1;
-            --danger-color: #e74c3c;
-        }
+       /* Reset and Variables */
+/* Modern Health Monitoring System Theme */
+:root {
+    --primary-color: #1ca883;
+    --primary-dark: #159f7f;
+    --primary-light: #e8f5f1;
+    --secondary-color: #f0f9f6;
+    --accent-color: #ff6b6b;
+    --text-color: #2c3e50;
+    --text-light: #6c757d;
+    --white: #ffffff;
+    --error: #dc3545;
+    --success: #28a745;
+    --warning: #ffc107;
+    --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
 
-        body {
-            font-family: 'Poppins', sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-            min-height: 100vh;
-            padding-bottom: 60px;
-        }
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
 
-        .container {
-            max-width: 1300px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-            overflow-x: auto;
-            position: relative;
-        }
+body {
+    background: linear-gradient(135deg, #f8fafb 0%, var(--primary-light) 100%);
+    color: var(--text-color);
+    line-height: 1.6;
+    min-height: 100vh;
+}
 
-        /* Header Styles */
-        header {
-            position: relative;
-            margin-bottom: 2rem;
-        }
+.container {
+    width: 95%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1rem;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.5rem;
+}
 
-        header h1 {
-            color: white;
-            font-weight: 600;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            background: linear-gradient(135deg, var(--primary-color), #159f7f);
-            border-radius: 20px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 1rem;
-        }
+/* Header Styles */
+header {
+    grid-column: span 12;
+    background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: var(--box-shadow);
+    margin-bottom: 1rem;
+}
 
-        /* Table Styles */
-        table {
-            width: 100%;
-            background: white;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-            margin-bottom: 2rem;
-            border-collapse: separate;
-            border-spacing: 0;
-            table-layout: fixed;
-        }
+header h1 {
+    color: var(--white);
+    font-size: 1.8rem;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+}
 
-        th {
-            background: linear-gradient(135deg, var(--primary-color), #159f7f);
-            color: white;
-            padding: 1.2rem;
-            text-align: left;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.9rem;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
+/* Form Container */
+.form-container {
+    grid-column: span 4;
+    background: var(--white);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--box-shadow);
+    position: sticky;
+    top: 1rem;
+    height: fit-content;
+}
 
-        td {
-            padding: 1rem;
-            border-bottom: 1px solid var(--secondary-color);
-            vertical-align: middle;
-            word-wrap: break-word;
-        }
+/* Table Container */
+/* Table Styles */
+table {
+    grid-column: span 8;
+    background: var(--white);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--box-shadow);
+    width: 100%;
+    border-collapse: collapse;
+    border: 3px solid #1ca883; /* Border utama lebih tebal */
+}
 
-        tr:hover {
-            background-color: var(--card-hover);
-        }
+th {
+    background: var(--primary-color);
+    color: var(--white);
+    padding: 1rem;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 2px solid #159f7f; /* Border header lebih tegas */
+}
 
-        /* Form Styles */
-        .form-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 20px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-            margin-top: 2rem;
-        }
+td {
+    padding: 1rem;
+    border: 2px solid #ccc; /* Border sel lebih tegas dan warna lebih gelap */
+    font-size: 0.9rem;
+    vertical-align: middle;
+}
 
-        .form-container h2 {
-            color: var(--primary-color);
-            margin-bottom: 1.5rem;
-            text-align: center;
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
+tr {
+    border: 2px solid #ccc; /* Border baris lebih tegas */
+}
 
-        .form-group {
-            margin-bottom: 1.5rem;
-            position: relative;
-        }
+tr:last-child td {
+    border-bottom: 2px solid #ccc; /* Border baris terakhir */
+}
 
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: var(--text-color);
-            font-size: 0.9rem;
-        }
+/* Tambahan untuk mempertegas garis vertikal */
+th:not(:last-child),
+td:not(:last-child) {
+    border-right: 2px solid #ccc;
+}
 
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 0.8rem 1rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-family: inherit;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            background: #f8f9fa;
-        }
+/* Mempertegas header */
+thead tr {
+    border-bottom: 3px solid #159f7f;
+}
 
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            border-color: var(--primary-color);
-            background: white;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(28, 168, 131, 0.1);
-        }
+/* Hover state */
+tbody tr:hover {
+    background-color: #f5f5f5;
+}
 
-        .form-group input:hover,
-        .form-group select:hover,
-        .form-group textarea:hover {
-            border-color: #ccc;
-            background: white;
-        }
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.6rem;
+    border: 2px solid var(--primary-light);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
 
-        /* Button Styles */
-        .btn-submit {
-            padding: 0.8rem 1.5rem;
-            background: linear-gradient(135deg, var(--primary-color), #159f7f);
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 0.95rem;
-            width: 100%;
-            transition: all 0.3s ease;
-            margin-top: 1rem;
-        }
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(28, 168, 131, 0.1);
+    outline: none;
+}
 
-        .btn-submit:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
-        }
+/* Table Styles */
+th {
+    background: var(--primary-color);
+    color: var(--white);
+    padding: 0.8rem;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
 
-        /* Alert Styles */
-        .alert {
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            border-radius: 10px;
-            animation: fadeIn 0.3s ease;
-        }
+td {
+    padding: 0.8rem;
+    border-bottom: 1px solid var(--primary-light);
+    font-size: 0.9rem;
+}
 
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
+tr:hover {
+    background-color: var(--primary-light);
+}
 
-        .alert-danger {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
+/* Button Styles */
+.btn-submit {
+    background: linear-gradient(45deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: var(--white);
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+.btn-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(28, 168, 131, 0.2);
+}
 
-        /* Responsive Design */
-        @media screen and (max-width: 1024px) {
-            .container {
-                padding: 0 1rem;
-            }
+/* Alert Styles */
+.alert {
+    grid-column: span 12;
+    padding: 0.8rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    animation: slideIn 0.5s ease-out;
+}
 
-            table {
-                display: block;
-                overflow-x: auto;
-                white-space: nowrap;
-            }
-        }
+.alert-success {
+    background-color: var(--success);
+    color: var(--white);
+}
 
-        @media screen and (max-width: 768px) {
-            .container {
-                padding: 0 0.5rem;
-            }
+.alert-danger {
+    background-color: var(--error);
+    color: var(--white);
+}
 
-            header h1 {
-                font-size: 1.5rem;
-                padding: 1rem;
-            }
+/* Health Status Indicators */
+.status-healthy,
+.status-sick {
+    padding: 0.3rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
 
-            th, td {
-                padding: 0.8rem;
-            }
+.status-healthy {
+    background-color: var(--success);
+    color: var(--white);
+}
 
-            .form-container {
-                padding: 1.5rem;
-            }
+.status-sick {
+    background-color: var(--error);
+    color: var(--white);
+}
 
-            .btn-submit {
-                padding: 0.7rem 1.2rem;
-                font-size: 0.9rem;
-            }
-        }
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .form-container {
+        grid-column: span 5;
+    }
+    
+    table {
+        grid-column: span 7;
+    }
+}
+
+@media (max-width: 992px) {
+    .form-container,
+    table {
+        grid-column: span 12;
+    }
+    
+    .form-container {
+        position: static;
+    }
+    
+    table {
+        overflow-x: auto;
+        display: block;
+    }
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Medical Icons Enhancement */
+.medical-icon {
+    font-size: 1.2rem;
+    color: var(--primary-color);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--primary-light);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-dark);
+}
     </style>
 </head>
 <body>
+    
     <div class="container">
         <header>
             <h1><i class="fas fa-heartbeat"></i> Monitoring Kesehatan Siswa</h1>
         </header>
 
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>Nama</th>
-                <th>NIS</th>
-                <th>Kelas</th>
-                <th>Suhu (°C)</th>
-                <th>Status</th>
-                <th>Keluhan</th>
-                <th>Diagnosis</th>
-                <th>Pertolongan Pertama</th>
-            </tr>
-            <tbody id="siswaTableBody">
-                <?php foreach ($daftarRekamKesehatan as $rekam): ?>
-                <tr>
-                    <td><?php echo $rekam['id']; ?></td>
-                    <td><?php echo $rekam['nama']; ?></td>
-                    <td><?php echo $rekam['nis']; ?></td>
-                    <td><?php echo $rekam['kelas']; ?></td>
-                    <td><?php echo $rekam['suhu']; ?>°C</td>
-                    <td><?php echo $rekam['status']; ?></td>
-                    <td><?php echo $rekam['keluhan']; ?></td>
-                    <td><?php echo $rekam['diagnosis']; ?></td>
-                    <td><?php echo $rekam['pertolongan_pertama']; ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+        <?php if ($pesanSukses): ?>
+            <div class="alert alert-success"><?php echo htmlspecialchars($pesanSukses); ?></div>
+        <?php endif; ?>
+        <?php if ($pesanError): ?>
+            <div class="alert alert-danger"><?php echo htmlspecialchars($pesanError); ?></div>
+        <?php endif; ?>
 
         <div class="form-container">
             <h2>Tambah Data Siswa</h2>
-            <?php if ($pesanSukses): ?>
-                <div class="alert alert-success"><?php echo $pesanSukses; ?></div>
-            <?php endif; ?>
-            <?php if ($pesanError): ?>
-                <div class="alert alert-danger"><?php echo $pesanError; ?></div>
-            <?php endif; ?>
-            <form method="POST" action="">
+            <form method="POST" action="" id="monitoringForm">
                 <div class="form-group">
                     <label for="nis">NIS:</label>
                     <input type="text" name="nis" id="nis" required>
@@ -471,147 +565,126 @@ if ($result) {
                 </div>
                 <button type="submit" class="btn-submit">Tambah Siswa</button>
             </form>
-            <div style="text-align: center; margin-top: 20px;">
-                <button onclick="window.location.href='dashboard.php';" class="btn-submit">Kembali ke Dashboard</button>
-            </div>
+            
         </div>
-    </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nama</th>
+                    <th>NIS</th>
+                    <th>Kelas</th>
+                    <th>Suhu (°C)</th>
+                    <th>Status</th>
+                    <th>Keluhan</th>
+                    <th>Diagnosis</th>
+                    <th>Pertolongan Pertama</th>
+                </tr>
+            </thead>
+            <tbody id="siswaTableBody">
+                <?php foreach ($daftarRekamKesehatan as $rekam): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($rekam['id']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['nama']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['nis']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['kelas']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['suhu']); ?>°C</td>
+                    <td><?php echo htmlspecialchars($rekam['status']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['keluhan']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['diagnosis']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['pertolongan_pertama']); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+       
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const nisInput = document.getElementById('nis');
-            const namaInput = document.getElementById('nama');
+    const nisInput = document.getElementById('nis');
+    const namaInput = document.getElementById('nama');
+    let isUpdating = false;
+
+    async function searchStudent(searchTerm, searchType) {
+        if (isUpdating || !searchTerm) return;
+        
+        try {
+            isUpdating = true;
+            const response = await fetch(`?action=getStudent&${searchType}=${encodeURIComponent(searchTerm)}`);
+            if (!response.ok) throw new Error('Network response was not ok');
             
-            nisInput.addEventListener('input', async function() {
-                if (this.value.length > 0) {
-                    try {
-                        const response = await fetch(`?action=getStudent&nis=${this.value}`);
-                        const data = await response.json();
-                        if (data) {
-                            namaInput.value = data.nama;
-                        } else {
-                            namaInput.value = '';
-                        }
-                    } catch (error) {
-                        console.error('Error:', error);
-                    }
-                }
-            });
+            const data = await response.json();
             
-            namaInput.addEventListener('input', async function() {
-                if (this.value.length > 2) {
-                    try {
-                        const response = await fetch(`?action=getStudent&nama=${this.value}`);
-                        const data = await response.json();
-                        if (data) {
-                            nisInput.value = data.nis;
-                        } else {
-                            nisInput.value = '';
-                        }
-                    } catch (error) {
-                        console.error('Error:', error);
-                    }
+            if (data && (data.nama || data.nis)) {
+                if (searchType === 'nis') {
+                    namaInput.value = data.nama;
+                } else if (searchType === 'nama') {
+                    nisInput.value = data.nis;
                 }
-            });
-        });
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+        } finally {
+            isUpdating = false;
+        }
+    }
 
-        function updateDashboard() {
-            const tableBody = document.getElementById('siswaTableBody');
-            if (!tableBody) return;
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
 
-            const rows = tableBody.querySelectorAll('tr');
-            let totalSiswa = rows.length;
-            let siswaSakit = 0;
-            let totalSuhu = 0;
+    const debouncedSearch = debounce(searchStudent, 300);
 
-            rows.forEach((row) => {
-                const statusCell = row.querySelector('td:nth-child(6)');
-                const suhuCell = row.querySelector('td:nth-child(5)');
-                
-                if (statusCell && suhuCell) {
-                    const status = statusCell.textContent.trim();
-                    const suhuText = suhuCell.textContent.trim();
-                    const suhu = parseFloat(suhuText.replace('°C', ''));
+    nisInput.addEventListener('input', function(e) {
+        const value = e.target.value.trim();
+        if (value) debouncedSearch(value, 'nis');
+    });
 
-                    if (status === 'Sakit') siswaSakit++;
-                    if (!isNaN(suhu)) totalSuhu += suhu;
-                }
-            });
-
-            const ratarataSuhu = totalSiswa > 0 ? (totalSuhu / totalSiswa) : 0;
-
-            // Update dashboard elements if they exist
-            const totalSiswaElem = document.getElementById('totalSiswa');
-            const siswaSakitElem = document.getElementById('siswaSakit');
-            const ratarataSuhuElem = document.getElementById('ratarataSuhu');
-
-            if (totalSiswaElem) totalSiswaElem.textContent = totalSiswa;
-            if (siswaSakitElem) siswaSakitElem.textContent = siswaSakit;
-            if (ratarataSuhuElem) ratarataSuhuElem.textContent = ratarataSuhu.toFixed(1) + '°C';
+    namaInput.addEventListener('input', function(e) {
+        const value = e.target.value.trim();
+        if (value.length >= 3) debouncedSearch(value, 'nama');
+    });
+});
+    // Form validation
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const suhu = parseFloat(document.getElementById('suhu').value);
+        
+        if (suhu < 35 || suhu > 42) {
+            e.preventDefault();
+            alert('Suhu harus berada dalam rentang 35°C - 42°C');
+            return false;
         }
 
-        // Alert styling
-        document.addEventListener('DOMContentLoaded', function() {
-            const alerts = document.querySelectorAll('.alert');
-            alerts.forEach(alert => {
-                if (alert.classList.contains('alert-success')) {
-                    alert.style.cssText = `
-                        padding: 1rem;
-                        margin-bottom: 1rem;
-                        border-radius: 8px;
-                        background-color: #d4edda;
-                        color: #155724;
-                        border: 1px solid #c3e6cb;
-                    `;
-                } else if (alert.classList.contains('alert-danger')) {
-                    alert.style.cssText = `
-                        padding: 1rem;
-                        margin-bottom: 1rem;
-                        border-radius: 8px;
-                        background-color: #f8d7da;
-                        color: #721c24;
-                        border: 1px solid #f5c6cb;
-                    `;
-                }
+        const nis = document.getElementById('nis').value;
+        if (!/^\d+$/.test(nis)) {
+            e.preventDefault();
+            alert('NIS harus berupa angka');
+            return false;
+        }
 
-                // Auto-hide alerts after 5 seconds
-                setTimeout(() => {
-                    alert.style.transition = 'opacity 0.5s ease-out';
-                    alert.style.opacity = '0';
-                    setTimeout(() => alert.remove(), 500);
-                }, 5000);
-            });
-        });
+        const kelas = document.getElementById('kelas').value;
+        if (kelas.length < 2) {
+            e.preventDefault();
+            alert('Kelas harus diisi dengan benar (minimal 3 karakter)');
+            return false;
+        }
+    });
 
-        // Form validation
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const suhu = parseFloat(document.getElementById('suhu').value);
-            
-            if (suhu < 35 || suhu > 42) {
-                e.preventDefault();
-                alert('Suhu harus berada dalam rentang 35°C - 42°C');
-                return false;
-            }
-
-            const nis = document.getElementById('nis').value;
-            if (!/^\d+$/.test(nis)) {
-                e.preventDefault();
-                alert('NIS harus berupa angka');
-                return false;
-            }
-
-            const kelas = document.getElementById('kelas').value;
-            if (kelas.length < 3) {
-                e.preventDefault();
-                alert('Kelas harus diisi dengan benar (minimal 3 karakter)');
-                return false;
-            }
-        });
-
-        // Initialize dashboard on page load
-        window.onload = function() {
-            updateDashboard();
-        };
+    // Alert auto-hide
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            alert.style.transition = 'opacity 0.5s ease-out';
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 500);
+        }, 5000);
+    });
     </script>
-    <!-- Previous JavaScript code remains the same -->
 </body>
 </html>

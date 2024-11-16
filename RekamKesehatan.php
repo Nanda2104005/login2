@@ -8,6 +8,48 @@ if ($conn->connect_error) {
     die("Koneksi gagal: " . $conn->connect_error);
 }
 
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
+    $id = $_POST['id'];
+    $nama = $_POST['nama'];
+    $nis = $_POST['nis'];
+    $keluhan = $_POST['keluhan'];
+    $diagnosis = $_POST['diagnosis'];
+    $pertolongan = $_POST['Pertolongan_Pertama'];
+    
+    try {
+        // Persiapkan query update
+        $stmt = $conn->prepare("UPDATE rekam_kesehatan 
+                              SET nama = ?, 
+                                  nis = ?, 
+                                  keluhan = ?, 
+                                  diagnosis = ?, 
+                                  Pertolongan_Pertama = ?
+                              WHERE id = ?");
+        
+        // Bind parameter
+        $stmt->bind_param("sssssi", 
+            $nama, 
+            $nis, 
+            $keluhan, 
+            $diagnosis, 
+            $pertolongan, 
+            $id
+        );
+        
+        // Eksekusi query
+        if ($stmt->execute()) {
+            // Redirect dengan pesan sukses
+            header("Location: " . $_SERVER['PHP_SELF'] . "?message=Data berhasil diupdate");
+            exit();
+        } else {
+            throw new Exception("Gagal mengupdate data: " . $stmt->error);
+        }
+    } catch (Exception $e) {
+        // Tampilkan pesan error
+        $pesanError = "Error: " . $e->getMessage();
+    }
+}
+
 // Tambahkan kode pencarian
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 $searchResults = array(); 
@@ -107,41 +149,55 @@ if (!empty($search)) {
         }
 
         .content-table {
-            width: 100%;
-            background: white;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-            margin-bottom: 2rem;
-            border-collapse: separate;
-            border-spacing: 0;
-            table-layout: fixed;
-        }
+    width: 100%;
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+    border-collapse: collapse;
+    border: 3px solid var(--primary-color); /* Perbesar ketebalan border utama */
+}
 
-        .content-table th {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 1.2rem;
-            text-align: left;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.9rem;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
+.content-table th {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 1.2rem;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border: 2px solid #159f7f; /* Perbesar ketebalan border header */
+}
 
-        .content-table td {
-            padding: 1rem;
-            border-bottom: 1px solid var(--secondary-color);
-            vertical-align: middle;
-            word-wrap: break-word;
-        }
+.content-table td {
+    padding: 1rem;
+    border: 2px solid #e0e0e0; /* Perbesar ketebalan dan ubah warna border sel */
+    vertical-align: middle;
+    word-wrap: break-word;
+}
 
-        .content-table tr:hover {
-            background-color: var(--card-hover);
-        }
+.content-table tr {
+    border-bottom: 2px solid #e0e0e0; /* Perbesar ketebalan border baris */
+}
 
+.content-table tr:hover {
+    background-color: var(--card-hover);
+}
+
+/* Tambahkan border vertikal yang lebih jelas */
+.content-table th:not(:last-child),
+.content-table td:not(:last-child) {
+    border-right: 2px solid #e0e0e0;
+}
+
+/* Memperkuat border bawah header */
+.content-table thead tr {
+    border-bottom: 3px solid var(--primary-color);
+}
         .btn-back {
             position: fixed;
             top: 20px;

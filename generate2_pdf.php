@@ -4,7 +4,7 @@ require('fpdf/fpdf.php');
 class SuratIzinPDF extends FPDF {
     function Header() {
         // Add logo if needed
-        // $this->Image('logo.png', 10, 6, 30);
+        // $this->Image('p.png', 10, 6, 30);
         
         // Arial bold 15
         $this->SetFont('Arial', 'B', 15);
@@ -66,10 +66,11 @@ function generateSuratIzin($data) {
     $pdf->MultiCell(0, 5, 'Dengan ini memohon izin untuk tidak mengikuti kegiatan belajar-mengajar pada hari ini, dikarenakan kondisi kesehatan yang kurang baik. Siswa yang bersangkutan mengalami gejala sebagai berikut:', 0, 'J');
     $pdf->Ln(5);
     
+    // Fixed temperature display by using chr(176) for the degree symbol
     $pdf->Cell(5, 5, '-', 0, 0, 'L');
     $pdf->Cell(40, 5, 'Suhu Tubuh', 0, 0, 'L');
     $pdf->Cell(5, 5, ':', 0, 0, 'L');
-    $pdf->Cell(0, 5, $data['suhu'] . ' °C', 0, 1, 'L');
+    $pdf->Cell(0, 5, $data['suhu'] . chr(176) . '', 0, 1, 'L');
     
     $pdf->Cell(5, 5, '-', 0, 0, 'L');
     $pdf->Cell(40, 5, 'Keluhan', 0, 0, 'L');
@@ -106,6 +107,9 @@ if (isset($_GET['id'])) {
     if (!$conn) {
         die("Koneksi gagal: " . mysqli_connect_error());
     }
+    
+    // Set character set to UTF-8
+    mysqli_set_charset($conn, "utf8");
     
     $id = $_GET['id'];
     

@@ -23,7 +23,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
                                   nis = ?, 
                                   keluhan = ?, 
                                   diagnosis = ?, 
-                                  Pertolongan_Pertama = ?
+                                  Pertolongan_Pertama = ?,
+                                  tanggal = CURRENT_TIMESTAMP
                               WHERE id = ?");
         
         // Bind parameter
@@ -32,38 +33,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
             $nis, 
             $keluhan, 
             $diagnosis, 
-            $pertolongan, 
+            $pertolongan,
             $id
         );
         
-        // Eksekusi query
         if ($stmt->execute()) {
-            // Redirect dengan pesan sukses
             header("Location: " . $_SERVER['PHP_SELF'] . "?message=Data berhasil diupdate");
             exit();
         } else {
             throw new Exception("Gagal mengupdate data: " . $stmt->error);
         }
     } catch (Exception $e) {
-        // Tampilkan pesan error
         $pesanError = "Error: " . $e->getMessage();
     }
 }
 
-// Tambahkan kode pencarian
-$search = isset($_GET['search']) ? $_GET['search'] : '';
-$searchResults = array(); 
-
-// Modifikasi fungsi untuk mengambil semua rekam kesehatan
+// Modifikasi fungsi untuk mengambil semua rekam kesehatan dengan pengurutan berdasarkan tanggal
 function ambilSemuaRekamKesehatan() {
     global $conn;
-    $result = $conn->query("SELECT * FROM rekam_kesehatan ORDER BY tanggal DESC");
+    $result = $conn->query("SELECT *, 
+                           DATE_FORMAT(tanggal, '%d/%m/%Y %H:%i') as tanggal_format
+                           FROM rekam_kesehatan 
+                           ORDER BY tanggal DESC");
     return $result->fetch_all(MYSQLI_ASSOC);
 }
 
-// Modifikasi logika pencarian untuk mengurutkan hasil
+// Modifikasi logika pencarian
+$search = isset($_GET['search']) ? $_GET['search'] : '';
+$searchResults = array();
+
 if (!empty($search)) {
     $sql = "SELECT *, 
+            DATE_FORMAT(tanggal, '%d/%m/%Y %H:%i') as tanggal_format,
             CASE 
                 WHEN nama LIKE ? THEN 1
                 WHEN nis LIKE ? THEN 2
@@ -95,7 +96,6 @@ if (!empty($search)) {
 } else {
     $daftarRekamKesehatan = ambilSemuaRekamKesehatan();
 }
-
 ?>
 
 <!DOCTYPE html>
@@ -931,7 +931,7 @@ if (!empty($search)) {
     </div>
 </div>
 
-        <table class="content-table">
+<table class="content-table">
             <thead>
                 <tr>
                     <th>Tanggal</th>
@@ -946,12 +946,12 @@ if (!empty($search)) {
             <tbody>
                 <?php foreach ($daftarRekamKesehatan as $rekam): ?>
                 <tr class="<?php echo (!empty($search) && in_array($rekam['id'], $searchResults)) ? 'highlight' : ''; ?>">
-                    <td><?php echo $rekam['tanggal']; ?></td>
-                    <td><?php echo $rekam['nama']; ?></td>
-                    <td><?php echo $rekam['nis']; ?></td>
-                    <td><?php echo $rekam['keluhan']; ?></td>
-                    <td><?php echo $rekam['diagnosis']; ?></td>
-                    <td><?php echo $rekam['Pertolongan_Pertama']; ?></td>
+                    <td><?php echo $rekam['tanggal_format']; ?></td>
+                    <td><?php echo htmlspecialchars($rekam['nama']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['nis']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['keluhan']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['diagnosis']); ?></td>
+                    <td><?php echo htmlspecialchars($rekam['Pertolongan_Pertama']); ?></td>
                     <td>
                         <a href="#" onclick="openEditModal(<?php echo htmlspecialchars(json_encode($rekam)); ?>)" class="icon-button edit" title="Edit">
                             <i class="fas fa-pen"></i>
@@ -965,7 +965,7 @@ if (!empty($search)) {
             </tbody>
         </table>
     </div>
-
+    
     <!-- Modal Edit -->
 <div id="editModal" class="modal">
     <div class="modal-content">

@@ -457,6 +457,15 @@ $role = $_SESSION['role'];
                 <a href="userslist.php" class="btn-card">Buka Users List</a>
             </div>
 
+            <div class="dashboard-card">
+                <i class="fas fa-save save-icon"></i>
+                <div>
+                    <h3><i class="fas fa-save"></i>Stok Obat</h3>
+                    <p>Disini anda bisa melihat barang barang simpan.</p>
+                </div>
+                <a href="stokobat.php" class="btn-card">Buka Stok Obat</a>
+            </div>
+
             
 
 

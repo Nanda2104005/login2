@@ -9,8 +9,6 @@ function checkLoginStatus() {
     }
 }
 
-
-
 checkLoginStatus();
 
 // Koneksi database
@@ -36,28 +34,29 @@ $user_data = $result->fetch_assoc();
 $user_role = $user_data['role'];
 
 // Fungsi untuk mengupdate password
-function updatePassword($conn, $email, $new_password) {
-    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
-    $stmt = $conn->prepare("UPDATE users SET password = ? WHERE email = ? AND role = 'siswa'");
-    $stmt->bind_param("ss", $hashed_password, $email);
+function updatePassword($conn, $username, $new_password) {
+    // Menggunakan MD5 untuk kompatibilitas dengan sistem yang ada
+    $hashed_password = md5($new_password);
+    $stmt = $conn->prepare("UPDATE users SET password = ? WHERE username = ? AND role = 'siswa'");
+    $stmt->bind_param("ss", $hashed_password, $username);
     return $stmt->execute();
 }
 
 // Handle form submission untuk reset password
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
-    $email = $_POST['email'];
+    $username = $_POST['selected_user'];
     $new_password = $_POST['new_password'];
     $confirm_password = $_POST['confirm_password'];
     
-    // Verifikasi email ada di database dan merupakan siswa
-    $check_email = $conn->prepare("SELECT email FROM users WHERE email = ? AND role = 'siswa'");
-    $check_email->bind_param("s", $email);
-    $check_email->execute();
-    $email_result = $check_email->get_result();
+    // Verifikasi username ada di database dan merupakan siswa
+    $check_user = $conn->prepare("SELECT username FROM users WHERE username = ? AND role = 'siswa'");
+    $check_user->bind_param("s", $username);
+    $check_user->execute();
+    $user_result = $check_user->get_result();
 
-    if ($email_result->num_rows > 0) {
+    if ($user_result->num_rows > 0) {
         if ($new_password === $confirm_password) {
-            if (updatePassword($conn, $email, $new_password)) {
+            if (updatePassword($conn, $username, $new_password)) {
                 $success_message = "Password berhasil diperbarui!";
             } else {
                 $error_message = "Gagal memperbarui password. Silakan coba lagi.";
@@ -66,7 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             $error_message = "Password baru dan konfirmasi password tidak cocok.";
         }
     } else {
-        $error_message = "Email tidak terdaftar atau bukan merupakan akun siswa.";
+        $error_message = "Username tidak terdaftar atau bukan merupakan akun siswa.";
     }
 }
 ?>
@@ -140,8 +139,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             border: 1px solid var(--glass-border);
         }
 
+        .table-responsive {
+            overflow-x: unset;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
         table {
             width: 100%;
+            table-layout: fixed;
             border-collapse: collapse;
             margin: 1.5rem 0;
             background: var(--white);
@@ -154,16 +160,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             padding: 1.2rem;
             text-align: left;
             border-bottom: 1px solid var(--secondary-color);
+            white-space: normal;
+            word-wrap: break-word;
         }
 
         th {
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-            color: white;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.9rem;
-            letter-spacing: 0.5px;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+    text-align: center; /* Center align all headers */
+    white-space: nowrap; /* Prevent text wrapping */
+}
+
+th:first-child, 
+td:first-child {
+    width: 5%;
+    white-space: nowrap; /* Prevent "No" column from wrapping */
+    text-align: center; /* Center align the "No" column */
+}
         }
+
+        /* Mengatur lebar kolom */
+        th:nth-child(1), td:nth-child(1) { width: 5%; }  /* No */
+        th:nth-child(2), td:nth-child(2) { width: 15%; } /* Username */
+        th:nth-child(3), td:nth-child(3) { width: 15%; } /* NIS */
+        th:nth-child(4), td:nth-child(4) { width: 25%; } /* Nama Lengkap */
+        th:nth-child(5), td:nth-child(5) { width: 25%; } /* Email */
+        th:nth-child(6), td:nth-child(6) { width: 15%; } /* Role (jika admin) */
 
         tr:hover {
             background-color: var(--card-hover);
@@ -230,6 +256,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
         }
 
+        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -254,6 +281,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             max-width: 500px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
             border: 1px solid var(--glass-border);
+            animation: slideIn 0.3s ease-out;
         }
 
         .modal-header {
@@ -303,7 +331,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             font-size: 0.95rem;
         }
 
-        .form-group input {
+        .password-input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-control {
             width: 100%;
             padding: 1rem;
             border: 2px solid var(--secondary-color);
@@ -313,10 +347,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             background-color: rgba(255, 255, 255, 0.9);
         }
 
-        .form-group input:focus {
+        .form-control:focus {
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 4px rgba(28, 168, 131, 0.1);
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 1rem;
+            cursor: pointer;
+            color: var(--text-color);
+            opacity: 0.7;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-password:hover {
+            opacity: 1;
+            color: var(--primary-color);
+        }
+
+        select.form-control {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23333' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            padding-right: 2.5rem;
         }
 
         .message {
@@ -341,6 +397,51 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             border-left: 4px solid #dc2626;
         }
 
+        .btn-reset {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.8rem;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(28, 168, 131, 0.2);
+            margin-top: 1rem;
+        }
+
+        .btn-reset:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(28, 168, 131, 0.3);
+        }
+
+        .password-strength {
+            height: 4px;
+            margin-top: 0.5rem;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .weak {
+            background: var(--accent-color);
+            width: 33.33%;
+        }
+
+        .medium {
+            background: #fbbf24;
+            width: 66.66%;
+        }
+
+        .strong {
+            background: var(--primary-color);
+            width: 100%;
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 1rem;
@@ -350,10 +451,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
                 font-size: 2rem;
             }
             
-            table {
-                display: block;
+            .table-responsive {
                 overflow-x: auto;
-                white-space: nowrap;
+            }
+            
+            table {
+                min-width: 800px;
             }
             
             .action-buttons {
@@ -372,6 +475,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
             .form-group input {
                 padding: 0.8rem;
             }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translate(-50%, -70%);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+            to {
+                transform: translate(-50%, -70%);
+                opacity: 0;
+            }
+        }
+
+        .modal-content.closing {
+            animation: slideOut 0.3s ease-in forwards;
         }
     </style>
 </head>
@@ -397,19 +526,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
 
         <div class="user-container">
             <?php
+            // Query untuk menampilkan data dengan NIS
             if ($user_role === 'admin') {
-                $query = "SELECT id, username, role, nama_lengkap, email FROM users ORDER BY role DESC, username ASC";
+                $query = "SELECT id, username, role, nama_lengkap, nis, email FROM users ORDER BY role DESC, username ASC";
             } else {
-                $query = "SELECT id, username, nama_lengkap, email FROM users WHERE role = 'siswa' ORDER BY username ASC";
+                $query = "SELECT id, username, nama_lengkap, nis, email FROM users WHERE role = 'siswa' ORDER BY username ASC";
             }
 
             $result = $conn->query($query);
 
             if ($result->num_rows > 0) {
+                echo "<div class='table-responsive'>";
                 echo "<table>";
                 echo "<tr>";
                 echo "<th>No</th>";
                 echo "<th>Username</th>";
+                echo "<th>NIS</th>";
                 echo "<th>Nama Lengkap</th>";
                 echo "<th>Email</th>";
                 if ($user_role === 'admin') {
@@ -422,6 +554,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
                     echo "<tr>";
                     echo "<td>" . $no++ . "</td>";
                     echo "<td>" . htmlspecialchars($row['username']) . "</td>";
+                    echo "<td>" . htmlspecialchars($row['nis'] ?? '-') . "</td>";
                     echo "<td>" . htmlspecialchars($row['nama_lengkap'] ?? '-') . "</td>";
                     echo "<td>" . htmlspecialchars($row['email']) . "</td>";
                     if ($user_role === 'admin') {
@@ -431,6 +564,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
                     echo "</tr>";
                 }
                 echo "</table>";
+                echo "</div>";
             } else {
                 echo "<p>Tidak ada data pengguna.</p>";
             }
@@ -440,9 +574,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
                 <a href="dashboard.php" class="btn btn-back">
                     <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
                 </a>
-                <?php if ($user_role === 'siswa'): ?>
+                <?php if ($user_role === 'admin'): ?>
                     <button onclick="showResetPasswordModal()" class="btn btn-forgot-password">
-                        <i class="fas fa-key"></i> Lupa Password
+                        <i class="fas fa-key"></i> Reset Password Siswa
                     </button>
                 <?php endif; ?>
             </div>
@@ -453,181 +587,164 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
     <div id="resetPasswordModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2><i class="fas fa-key"></i> Reset Password</h2>
+                <h2><i class="fas fa-key"></i> Reset Password Siswa</h2>
                 <span class="close" onclick="closeResetPasswordModal()">&times;</span>
             </div>
-            <form method="POST" action="" onsubmit="return validateForm()
-             <div class="form-group">
-                   <label for="email">Email:</label>
-                   <input type="email" id="email" name="email" required 
-                          placeholder="Masukkan email terdaftar">
-               </div>
-               <div class="form-group">
-                   <label for="new_password">Password Baru:</label>
-                   <input type="password" id="new_password" name="new_password" required 
-                          placeholder="Masukkan password baru"
-                          minlength="8">
-               </div>
-               <div class="form-group">
-                   <label for="confirm_password">Konfirmasi Password:</label>  
-                   <input type="password" id="confirm_password" name="confirm_password" required 
-                          placeholder="Konfirmasi password baru"
-                          minlength="8">
-               </div>
-               <button type="submit" name="reset_password" class="btn btn-reset">
-                   <i class="fas fa-save"></i> Update Password
-               </button>
-           </form>
-       </div>
-   </div>
+            <form method="POST" action="" onsubmit="return validateForm()">
+                <div class="form-group">
+                    <label for="selected_user">Pilih Siswa:</label>
+                    <select id="selected_user" name="selected_user" class="form-control" required>
+                        <option value="">Pilih username siswa...</option>
+                        <?php
+                        $user_query = "SELECT username, nama_lengkap, nis FROM users WHERE role = 'siswa' ORDER BY username";
+                        $user_result = $conn->query($user_query);
+                        while ($row = $user_result->fetch_assoc()) {
+                            $display_text = $row['username'];
+                            if (!empty($row['nama_lengkap'])) {
+                                $display_text .= ' - ' . $row['nama_lengkap'];
+                            }
+                            if (!empty($row['nis'])) {
+                                $display_text .= ' (' . $row['nis'] . ')';
+                            }
+                            echo "<option value='" . htmlspecialchars($row['username']) . "'>" . 
+                                 htmlspecialchars($display_text) . "</option>";
+                        }
+                        ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">Password Baru:</label>
+                    <div class="password-input-container">
+                        <input type="password" id="new_password" name="new_password" class="form-control" required 
+                               placeholder="Masukkan password baru"
+                               minlength="8">
+                        <i class="fas fa-eye-slash toggle-password" onclick="togglePassword('new_password', this)"></i>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Konfirmasi Password:</label>
+                    <div class="password-input-container">
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-control" required 
+                               placeholder="Konfirmasi password baru"
+                               minlength="8">
+                        <i class="fas fa-eye-slash toggle-password" onclick="togglePassword('confirm_password', this)"></i>
+                    </div>
+                    
+                </div>
+                <button type="submit" name="reset_password" class="btn btn-reset">
+                    <i class="fas fa-save"></i> Update Password
+                </button>
+            </form>
 
-   <script>
-       function showResetPasswordModal() {
-           document.getElementById('resetPasswordModal').style.display = 'block';
-           document.body.style.overflow = 'hidden'; // Prevent scrolling
-       }
+        <div class="password-strength" id="password-strength"></div>
+        </div>
+    </div>
 
-       function closeResetPasswordModal() {
-           document.getElementById('resetPasswordModal').style.display = 'none';
-           document.body.style.overflow = 'auto'; // Enable scrolling
-       }
+    <script>
+        function togglePassword(inputId, icon) {
+            const input = document.getElementById(inputId);
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.remove("fa-eye-slash");
+                icon.classList.add("fa-eye");
+            } else {
+                input.type = "password";
+                icon.classList.remove("fa-eye");
+                icon.classList.add("fa-eye-slash");
+            }
+        }
 
-       function validateForm() {
-           var email = document.getElementById('email').value;
-           var newPassword = document.getElementById('new_password').value;
-           var confirmPassword = document.getElementById('confirm_password').value;
+        function showResetPasswordModal() {
+            document.getElementById('resetPasswordModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
 
-           // Email validation
-           var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-           if (!emailPattern.test(email)) {
-               alert('Mohon masukkan email yang valid!');
-               return false;
-           }
+        function closeResetPasswordModal() {
+            const modalContent = document.querySelector('.modal-content');
+            modalContent.classList.add('closing');
+            setTimeout(() => {
+                document.getElementById('resetPasswordModal').style.display = 'none';
+                document.body.style.overflow = 'auto';
+                modalContent.classList.remove('closing');
+            }, 300);
+        }
 
-           // Password strength validation
-           var passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
-           if (!passwordPattern.test(newPassword)) {
-               alert('Password harus minimal 8 karakter dan mengandung huruf besar, huruf kecil, dan angka!');
-               return false;
-           }
+        function validateForm() {
+            const selectedUser = document.getElementById('selected_user').value;
+            const newPassword = document.getElementById('new_password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
 
-           // Password match validation
-           if (newPassword !== confirmPassword) {
-               alert('Password baru dan konfirmasi password tidak cocok!');
-               return false;
-           }
+            if (!selectedUser) {
+                alert('Mohon pilih username siswa!');
+                return false;
+            }
 
-           return true;
-       }
+            if (newPassword !== confirmPassword) {
+                alert('Password baru dan konfirmasi password tidak cocok!');
+                return false;
+            }
 
-       // Close modal when clicking outside
-       window.onclick = function(event) {
-           var modal = document.getElementById('resetPasswordModal');
-           if (event.target == modal) {
-               closeResetPasswordModal();
-           }
-       }
+            return true;
+        }
 
-       // Auto hide messages after 5 seconds
-       setTimeout(function() {
-           var messages = document.getElementsByClassName('message');
-           for (var i = 0; i < messages.length; i++) {
-               messages[i].style.display = 'none';
-           }
-       }, 5000);
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('resetPasswordModal');
+            if (event.target == modal) {
+                closeResetPasswordModal();
+            }
+        }
 
-       // Tambahkan animasi untuk modal
-       document.querySelector('.modal-content').addEventListener('animationend', function(e) {
-           if (e.animationName === 'slideOut') {
-               document.getElementById('resetPasswordModal').style.display = 'none';
-           }
-       });
-   </script>
+        // Auto hide messages after 5 seconds
+        setTimeout(function() {
+            const messages = document.getElementsByClassName('message');
+            for (let i = 0; i < messages.length; i++) {
+                messages[i].style.display = 'none';
+            }
+        }, 5000);
 
-   <style>
-       /* Additional Styles for Animations */
-       @keyframes slideIn {
-           from {
-               transform: translate(-50%, -70%);
-               opacity: 0;
-           }
-           to {
-               transform: translate(-50%, -50%);
-               opacity: 1;
-           }
-       }
+        function checkPasswordStrength(password) {
+    let strength = 0;
+    
+    // Check length
+    if (password.length >= 8) strength += 1;
+    if (password.length >= 12) strength += 1;
+    
+    // Check for numbers
+    if (/\d/.test(password)) strength += 1;
+    
+    // Check for lowercase letters
+    if (/[a-z]/.test(password)) strength += 1;
+    
+    // Check for uppercase letters
+    if (/[A-Z]/.test(password)) strength += 1;
+    
+    // Check for special characters
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength += 1;
 
-       @keyframes slideOut {
-           from {
-               transform: translate(-50%, -50%);
-               opacity: 1;
-           }
-           to {
-               transform: translate(-50%, -70%);
-               opacity: 0;
-           }
-       }
+    // Calculate strength level
+    if (strength <= 2) return 'weak';
+    if (strength <= 4) return 'medium';
+    return 'strong';
+}
 
-       .modal-content {
-           animation: slideIn 0.3s ease-out;
-       }
-
-       .modal-content.closing {
-           animation: slideOut 0.3s ease-in forwards;
-       }
-
-       .btn-reset {
-           background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-           color: white;
-           padding: 1rem 2rem;
-           border: none;
-           border-radius: var(--border-radius);
-           font-weight: 600;
-           display: flex;
-           align-items: center;
-           justify-content: center;
-           gap: 0.8rem;
-           width: 100%;
-           cursor: pointer;
-           transition: all 0.3s ease;
-           box-shadow: 0 4px 6px rgba(28, 168, 131, 0.2);
-           margin-top: 1rem;
-       }
-
-       .btn-reset:hover {
-           transform: translateY(-2px);
-           box-shadow: 0 6px 12px rgba(28, 168, 131, 0.3);
-       }
-
-       .form-group input:focus {
-           outline: none;
-           border-color: var(--primary-color);
-           box-shadow: 0 0 0 4px rgba(28, 168, 131, 0.1);
-       }
-
-       /* Password strength indicator */
-       .password-strength {
-           height: 4px;
-           margin-top: 0.5rem;
-           border-radius: 2px;
-           transition: all 0.3s ease;
-       }
-
-       .weak {
-           background: var(--accent-color);
-           width: 33.33%;
-       }
-
-       .medium {
-           background: var(--warning);
-           width: 66.66%;
-       }
-
-       .strong {
-           background: var(--primary-color);
-           width: 100%;
-       }
-   </style>
+function updatePasswordStrength() {
+    const password = document.getElementById('new_password').value;
+    const strengthIndicator = document.getElementById('password-strength');
+    const strength = checkPasswordStrength(password);
+    
+    // Remove previous classes
+    strengthIndicator.classList.remove('weak', 'medium', 'strong');
+    
+    // Add new class
+    if (password.length > 0) {
+        strengthIndicator.classList.add(strength);
+        strengthIndicator.style.display = 'block';
+    } else {
+        strengthIndicator.style.display = 'none';
+    }
+}
+    </script>
 </body>
 </html>
 

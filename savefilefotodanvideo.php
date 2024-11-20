@@ -393,9 +393,121 @@ if (isset($_GET['message'])) {
             font-size: 0.8rem;
         }
     }
+
+    .media-modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.9);
+        justify-content: center;
+        align-items: center;
+    }
+
+    .media-modal-content {
+        position: relative;
+        max-width: 90%;
+        max-height: 90vh;
+        margin: auto;
+    }
+
+    .media-modal img {
+        max-width: 100%;
+        max-height: 90vh;
+        object-fit: contain;
+        border-radius: 8px;
+    }
+
+    .media-modal .video-wrapper {
+        width: 80vw;
+        height: 45vw;
+        max-width: 1280px;
+        max-height: 720px;
+    }
+
+    .media-modal iframe,
+    .media-modal video {
+        width: 100%;
+        height: 100%;
+        border: none;
+        border-radius: 8px;
+    }
+
+    .close-modal {
+        position: absolute;
+        top: -40px;
+        right: 0;
+        color: #fff;
+        font-size: 30px;
+        cursor: pointer;
+        background: none;
+        border: none;
+        padding: 5px;
+        transition: transform 0.3s ease;
+    }
+
+    .close-modal:hover {
+        transform: scale(1.1);
+    }
+
+    .media-trigger {
+        cursor: pointer;
+        transition: transform 0.3s ease;
+    }
+
+    .media-trigger:hover {
+        transform: scale(1.05);
+    }
+
+    /* Animation for modal */
+    @keyframes modalFadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .media-modal.active {
+        display: flex;
+        animation: modalFadeIn 0.3s ease-out forwards;
+    }
+
+    .btn-back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            padding: 0.6rem 1.2rem;
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
+        }
 </style>
 </head>
 <body>
+
+<a href="dashboard.php" class="btn-back">
+        <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
+    </a> 
     <div class="container">
         <header>
             <h1>Data Edukasi Kesehatan</h1>
@@ -425,56 +537,129 @@ if (isset($_GET['message'])) {
                 </tr>
             </thead>
             <tbody>
-                <?php
-                if ($result->num_rows > 0) {
-                    $no = 1;
-                    while($row = $result->fetch_assoc()) {
-                        echo "<tr>";
-                        echo "<td>" . $no++ . "</td>";
-                        echo "<td>" . htmlspecialchars($row['judul']) . "</td>";
-                        echo "<td>" . nl2br(htmlspecialchars($row['konten'])) . "</td>";
-                        echo "<td>";
-                        if ($row['gambar']) {
-                            echo "<img src='" . htmlspecialchars($row['gambar']) . "' alt='Thumbnail' class='thumbnail'>";
-                        }
-                        echo "</td>";
-                        echo "<td>";
-                        if ($row['video']) {
-                            $youtube_id = getYoutubeVideoId($row['video']);
-                            if ($youtube_id) {
-                                echo "<div class='video-container'>";
-                                echo "<iframe src='https://www.youtube.com/embed/" . htmlspecialchars($youtube_id) . "' 
-                                      frameborder='0' allowfullscreen></iframe>";
-                                echo "</div>";
-                            }
-                        } elseif ($row['video_file']) {
-                            echo "<div class='video-container'>";
-                            echo "<video controls>";
-                            echo "<source src='" . htmlspecialchars($row['video_file']) . "' 
-                                  type='video/" . pathinfo($row['video_file'], PATHINFO_EXTENSION) . "'>";
-                            echo "Browser Anda tidak mendukung tag video.";
-                            echo "</video>";
-                            echo "</div>";
-                        }
-                        echo "</td>";
-                        echo "<td>";
-                        echo "<a href='Deletefotodanvideo.php?id=" . $row['id'] . "' class='delete-btn' 
-                              onclick='return confirm(\"Apakah Anda yakin ingin menghapus data ini?\");'>";
-                        echo "<i class='fas fa-trash'></i> Hapus</a>";
-                        echo "</td>";
-                        echo "</tr>";
-                    }
-                } else {
-                    echo "<tr><td colspan='6' style='text-align: center;'>Tidak ada data</td></tr>";
+            <?php
+        if ($result->num_rows > 0) {
+            $no = 1;
+            while($row = $result->fetch_assoc()) {
+                echo "<tr>";
+                echo "<td>" . $no++ . "</td>";
+                echo "<td>" . htmlspecialchars($row['judul']) . "</td>";
+                echo "<td>" . nl2br(htmlspecialchars($row['konten'])) . "</td>";
+                echo "<td>";
+                if ($row['gambar']) {
+                    echo "<img src='" . htmlspecialchars($row['gambar']) . "' alt='Thumbnail' class='thumbnail media-trigger' 
+                          onclick='openMediaModal(\"image\", \"" . htmlspecialchars($row['gambar']) . "\")'>";
                 }
-                ?>
+                echo "</td>";
+                echo "<td>";
+                if ($row['video']) {
+                    $youtube_id = getYoutubeVideoId($row['video']);
+                    if ($youtube_id) {
+                        echo "<div class='video-container media-trigger' 
+                              onclick='openMediaModal(\"youtube\", \"" . htmlspecialchars($youtube_id) . "\")'>";
+                        echo "<iframe src='https://www.youtube.com/embed/" . htmlspecialchars($youtube_id) . "' 
+                              frameborder='0' allowfullscreen></iframe>";
+                        echo "</div>";
+                    }
+                } elseif ($row['video_file']) {
+                    echo "<div class='video-container media-trigger' 
+                          onclick='openMediaModal(\"video\", \"" . htmlspecialchars($row['video_file']) . "\")'>";
+                    echo "<video>";
+                    echo "<source src='" . htmlspecialchars($row['video_file']) . "' 
+                          type='video/" . pathinfo($row['video_file'], PATHINFO_EXTENSION) . "'>";
+                    echo "Browser Anda tidak mendukung tag video.";
+                    echo "</video>";
+                    echo "</div>";
+                }
+                echo "</td>";
+                echo "<td>";
+                echo "<a href='Deletefotodanvideo.php?id=" . $row['id'] . "' class='delete-btn' 
+                      onclick='return confirm(\"Apakah Anda yakin ingin menghapus data ini?\");'>";
+                echo "<i class='fas fa-trash'></i> Hapus</a>";
+                echo "</td>";
+                echo "</tr>";
+            }
+        } else {
+            echo "<tr><td colspan='6' style='text-align: center;'>Tidak ada data</td></tr>";
+        }
+        ?>
             </tbody>
         </table>
+    </div>
+
+    <div id="mediaModal" class="media-modal">
+        <div class="media-modal-content">
+            <button class="close-modal" onclick="closeMediaModal()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div id="mediaContainer"></div>
+        </div>
     </div>
 
     <footer>
         <p>&copy; 2024 Sistem Informasi Kesehatan Sekolah (SIKS). All Rights Reserved.</p>
     </footer>
+
+    <script>
+        function openMediaModal(type, source) {
+            const modal = document.getElementById('mediaModal');
+            const container = document.getElementById('mediaContainer');
+            container.innerHTML = '';
+
+            switch(type) {
+                case 'image':
+                    const img = document.createElement('img');
+                    img.src = source;
+                    img.alt = 'Full size image';
+                    container.appendChild(img);
+                    break;
+                case 'youtube':
+                    container.innerHTML = `
+                        <div class="video-wrapper">
+                            <iframe src="https://www.youtube.com/embed/${source}?autoplay=1" 
+                                    frameborder="0" 
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                    allowfullscreen>
+                            </iframe>
+                        </div>`;
+                    break;
+                case 'video':
+                    container.innerHTML = `
+                        <div class="video-wrapper">
+                            <video controls autoplay>
+                                <source src="${source}" type="video/${source.split('.').pop()}">
+                                Browser Anda tidak mendukung tag video.
+                            </video>
+                        </div>`;
+                    break;
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMediaModal() {
+            const modal = document.getElementById('mediaModal');
+            const container = document.getElementById('mediaContainer');
+            modal.classList.remove('active');
+            container.innerHTML = '';
+            document.body.style.overflow = 'auto';
+        }
+
+        // Close modal when clicking outside content
+        document.getElementById('mediaModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeMediaModal();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.getElementById('mediaModal').classList.contains('active')) {
+                closeMediaModal();
+            }
+        });
+</script>
 </body>
 </html>
 

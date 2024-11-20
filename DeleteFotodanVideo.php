@@ -25,7 +25,7 @@ $id = $_GET['id'];
 $user_id = $_SESSION['user_id'];
 
 // Ambil data file sebelum dihapus
-$sql = "SELECT gambar, video_file FROM edukasikesehatan WHERE id = ?";
+$sql = "SELECT gambar, video_file FROM edukasi_kesehatan WHERE id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $id);
 $stmt->execute();
@@ -34,11 +34,11 @@ $file_data = $result->fetch_assoc();
 
 // Hapus data berdasarkan ID dan user_id (kecuali untuk admin)
 if ($_SESSION['role'] === 'admin') {
-    $sql = "DELETE FROM edukasikesehatan WHERE id = ?";
+    $sql = "DELETE FROM edukasi_kesehatan WHERE id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $id);
 } else {
-    $sql = "DELETE FROM edukasikesehatan WHERE id = ? AND user_id = ?";
+    $sql = "DELETE FROM edukasi_kesehatan WHERE id = ? AND user_id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ii", $id, $user_id);
 }
@@ -51,9 +51,9 @@ if ($stmt->execute()) {
     if ($file_data['video_file'] && file_exists($file_data['video_file'])) {
         unlink($file_data['video_file']);
     }
-    header("Location: edukasikesehatan.php?message=success");
+    header("Location: savefilefotodanvideo.php?message=success");
 } else {
-    header("Location: edukasikesehatan.php?message=error");
+    header("Location: savefilefotodanvideo.php?message=error");
 }
 
 $stmt->close();

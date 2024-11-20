@@ -102,234 +102,407 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        :root {
-            --primary-color: #1ca883;
-            --secondary-color: #f0f9f6;
-            --accent-color: #ff6b6b;
-            --text-color: #2c3e50;
-            --background-color: #ecf0f1;
-            --card-hover: #e8f5f1;
-            --danger-color: #e74c3c;
-        }
+:root {
+    --primary-color: #1ca883;
+    --secondary-color: #f0f9f6;
+    --accent-color: #ff6b6b;
+    --text-color: #2c3e50;
+    --background-color: #ecf0f1;
+    --card-hover: #e8f5f1;
+    --danger-color: #e74c3c;
+}
 
-        body {
-            font-family: 'Poppins', sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-            min-height: 100vh;
-            padding-bottom: 60px;
-        }
+body {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, var(--secondary-color), #e8f5f1);
+    color: var(--text-color);
+    min-height: 100vh;
+}
 
-        .container {
-            max-width: 1300px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-            position: relative;
-        }
+.container {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    margin-top: 40px;
+    flex-wrap: wrap;
+}
 
-        .dashboard-header {
-            position: relative;
-            color: white;
-            font-weight: 600;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            background: linear-gradient(135deg, var(--primary-color), #159f7f);
-            border-radius: 20px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
+/* Form Styles */
+form {
+    flex: 0 0 350px;
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    height: fit-content;
+}
 
-        form {
-            background-color: white;
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
-            margin-bottom: 2rem;
-        }
+.dashboard-header {
+    background: linear-gradient(135deg, var(--primary-color), #159f7f);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 15px;
+    text-align: center;
+    margin-bottom: 20px;
+    width: 100%;
+}
 
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
+.form-group {
+    margin-bottom: 15px;
+}
 
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-        }
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-color);
+}
 
-        input[type="text"],
-        input[type="number"],
-        input[type="date"],
-        select,
-        textarea {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 10px;
-            border: 1px solid var(--secondary-color);
-            border-radius: 8px;
-            box-sizing: border-box;
-            transition: border-color 0.3s ease;
-            font-family: 'Poppins', sans-serif;
-        }
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+    margin-bottom: 5px;
+}
 
-        textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
+/* Table Styles */
+.table-container {
+    flex: 1;
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    min-width: 0; /* Prevents table from overflowing */
+}
 
-        .btn,
-        .btn-back {
-            padding: 0.6rem 1.2rem;
-            background: linear-gradient(135deg, var(--primary-color), #159f7f);
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            font-weight: 500;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-        }
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.9rem;
+}
 
-        .btn:hover,
-        .btn-back:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(28, 168, 131, 0.3);
-        }
+th {
+    background: var(--primary-color);
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-weight: 500;
+    white-space: nowrap;
+}
 
-        .btn-back {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1000;
-        }
+td {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
 
-        .alert {
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-            text-align: center;
-            animation: fadeOut 3s forwards;
-            animation-delay: 2s;
-        }
+/* Button Styles */
+.btn {
+    background: var(--primary-color);
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
 
-        .alert.success {
-            background-color: #def7ec;
-            color: #0e9f6e;
-        }
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(28, 168, 131, 0.2);
+}
 
-        .alert.error {
-            background-color: #fde2e8;
-            color: #e02424;
-        }
+<style>
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
 
-        @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; display: none; }
-        }
+.btn-edit {
+    background: #3498db;
+    color: white;
+    border: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
 
-        /* Table Styles */
-        .table-container {
-            overflow-x: auto;
-            margin: 20px 0;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
+.btn-delete {
+    background: linear-gradient(45deg, #ff4d4d, #ff6b6b);
+    color: white;
+    border: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
 
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-        }
+.btn-delete::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, #ff3333, #ff4d4d);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
 
-        th {
-            background-color: var(--primary-color);
-            color: white;
-            font-weight: 600;
-            padding: 15px;
-            text-align: left;
-            border: none;
-            white-space: nowrap;
-        }
+.btn-delete:hover::before {
+    opacity: 1;
+}
 
-        td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #edf2f7;
-            color: #2d3748;
-        }
+.btn-delete i {
+    color: white;
+    font-size: 1rem;
+    position: relative;
+    z-index: 2;
+}
 
-        tr:last-child td {
-            border-bottom: none;
-        }
+.btn-edit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+    background: linear-gradient(45deg, #3498db, #2980b9);
+}
 
-        tr:hover td {
-            background-color: #f7fafc;
-        }
+.btn-delete:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(255, 77, 77, 0.3);
+}
 
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-            justify-content: flex-start;
-            align-items: center;
-        }
+/* Optional: Animasi ketika diklik */
+.btn-delete:active {
+    transform: scale(0.95);
+}
 
-        .btn-edit,
-        .btn-delete {
-            min-width: 40px;
-            height: 40px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 12px;
-            transition: all 0.3s ease;
-            color: white;
-        }
+/* Optional: Tambahkan efek pulse saat hover */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(255, 77, 77, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 77, 77, 0);
+    }
+}
 
-        .btn-edit {
-            background: #3498db;
-        }
+.btn-delete:hover {
+    animation: pulse 1.5s infinite;
+}
 
-        .btn-delete {
-            background: #e74c3c;
-        }
+/* Optional: Style untuk modal konfirmasi hapus */
+.delete-confirm-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-        .btn-edit:hover {
-            background: #2980b9;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2);
-        }
+.delete-confirm-content {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
 
-        .btn-delete:hover {
-            background: #c0392b;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(231, 76, 60, 0.2);
-        }
+.delete-confirm-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+}
 
-        /* Responsive design for buttons */
-        @media screen and (max-width: 768px) {
-            .action-buttons {
-                flex-direction: row;
-                gap: 8px;
-            }
+.delete-confirm-yes {
+    background: #ff4d4d;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
 
-            .btn-edit,
-            .btn-delete {
-                min-width: 40px;
-                padding: 0;
-            }
-        }
+.delete-confirm-no {
+    background: #6c757d;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+
+/* Back Button */
+.btn-back {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: var(--primary-color);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1000;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.btn-back:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(28, 168, 131, 0.2);
+}
+
+.btn-back i {
+    font-size: 1rem;
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.status-baik {
+    background-color: #def7ec;
+    color: #0e9f6e;
+}
+
+.status-rusak {
+    background-color: #fde2e8;
+    color: #e02424;
+}
+
+.status-habis {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+/* Alerts */
+.alert {
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    text-align: center;
+    width: 100%;
+}
+
+.alert.success {
+    background-color: #def7ec;
+    color: #0e9f6e;
+}
+
+.alert.error {
+    background-color: #fde2e8;
+    color: #e02424;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    width: 90%;
+    max-width: 500px;
+    margin: 20px auto;
+    padding: 20px;
+    border-radius: 15px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    overflow-y: auto;
+    padding: 20px 0;
+}
+
+/* Custom scrollbar for modal */
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: #159f7f;
+}
+
+/* Ensure form elements don't overflow */
+.modal-content form {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.modal-content .form-group {
+    margin-bottom: 15px;
+    width: 100%;
+}
     </style>
 </head>
 <body>
@@ -433,7 +606,6 @@ try {
 
         <!-- Tabel Data -->
         <?php if (!empty($data_inventaris)): ?>
-            <h2>Data Inventaris UKS</h2>
             <div class="table-container">
                 <table>
                     <thead>
@@ -486,9 +658,9 @@ try {
               onsubmit="return confirm('Apakah Anda yakin ingin menghapus item ini?');">
             <input type="hidden" name="delete" value="1">
             <input type="hidden" name="id_barang" value="<?php echo $item['id_barang']; ?>">
-            <button type="submit" class="btn-delete" title="Hapus">
-                <i class="fas fa-trash"></i>
-            </button>
+            <button class="btn-delete" title="Hapus">
+    <i class="fas fa-trash"></i>
+</button>
         </form>
     </td>
                             </tr>

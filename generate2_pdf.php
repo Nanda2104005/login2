@@ -70,7 +70,7 @@ function generateSuratIzin($data) {
     $pdf->Cell(5, 5, '-', 0, 0, 'L');
     $pdf->Cell(40, 5, 'Suhu Tubuh', 0, 0, 'L');
     $pdf->Cell(5, 5, ':', 0, 0, 'L');
-    $pdf->Cell(0, 5, $data['suhu'] . chr(176) . '', 0, 1, 'L');
+    $pdf->Cell(0, 5, $data['suhu'] . chr(176) . 'C', 0, 1, 'L');
     
     $pdf->Cell(5, 5, '-', 0, 0, 'L');
     $pdf->Cell(40, 5, 'Keluhan', 0, 0, 'L');
@@ -91,10 +91,24 @@ function generateSuratIzin($data) {
     $pdf->Cell(0, 5, 'Jember, ' . date('d F Y'), 0, 1, 'R');
     $pdf->Ln(5);
     
-    // Signature
-    $pdf->Cell(0, 5, 'Hormat Kami,', 0, 1, 'R');
-    $pdf->Ln(15);
-    $pdf->Cell(0, 5, 'Orang Tua/Wali Siswa', 0, 1, 'R');
+    // Signature section with two columns
+    $pdf->SetFont('Arial', '', 11);
+    
+    // Left side - UKS Officer signature
+    $pdf->Cell(95, 5, 'Mengetahui,', 0, 0, 'C');
+    // Right side - Parent signature
+    $pdf->Cell(95, 5, 'Hormat Kami,', 0, 1, 'C');
+    $pdf->Ln(20);  // Space for signature
+    
+    // Add dotted line for signatures
+    $pdf->SetFont('Arial', 'B', 11);
+    $pdf->Cell(95, 5, '________________', 0, 0, 'C');
+    $pdf->Cell(95, 5, '________________', 0, 1, 'C');
+    
+    // Add titles under the lines
+    $pdf->SetFont('Arial', '', 11);
+    $pdf->Cell(95, 5, '(Petugas UKS)', 0, 0, 'C');
+    $pdf->Cell(95, 5, 'Orang Tua/Wali Siswa', 0, 1, 'C');
     
     return $pdf;
 }

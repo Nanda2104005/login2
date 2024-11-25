@@ -8,6 +8,84 @@ if ($conn->connect_error) {
     die("Koneksi gagal: " . $conn->connect_error);
 }
 
+// Logika Penghapusan Data
+if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
+    $id = $_GET['id'];
+    
+    try {
+        // Mulai transaksi
+        mysqli_begin_transaction($conn);
+        
+        // 1. Dapatkan informasi dari rekam_kesehatan
+        $query = "SELECT nis FROM rekam_kesehatan WHERE id = ?";
+        $stmt = mysqli_prepare($conn, $query);
+        mysqli_stmt_bind_param($stmt, "i", $id);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        $data = mysqli_fetch_assoc($result);
+        
+        if ($data) {
+            $nis = $data['nis'];
+            
+            // 2. Cari data di monitoringkesehatan
+            $queryMonitoring = "SELECT id, pengingat_id FROM monitoringkesehatan WHERE nis = ?";
+            $stmtMonitoring = mysqli_prepare($conn, $queryMonitoring);
+            mysqli_stmt_bind_param($stmtMonitoring, "s", $nis);
+            mysqli_stmt_execute($stmtMonitoring);
+            $resultMonitoring = mysqli_stmt_get_result($stmtMonitoring);
+            $dataMonitoring = mysqli_fetch_assoc($resultMonitoring);
+            
+            if ($dataMonitoring) {
+                $monitoring_id = $dataMonitoring['id'];
+                $pengingat_id = $dataMonitoring['pengingat_id'];
+                
+                // 3. Hapus dari stok_obat
+                if ($pengingat_id) {
+                    $deleteStok = "DELETE FROM stok_obat WHERE id_pengingat = ?";
+                    $stmtStok = mysqli_prepare($conn, $deleteStok);
+                    mysqli_stmt_bind_param($stmtStok, "i", $pengingat_id);
+                    mysqli_stmt_execute($stmtStok);
+                }
+                
+                // 4. Hapus dari pengingatobat
+                if ($pengingat_id) {
+                    $deletePengingat = "DELETE FROM pengingatobat WHERE id = ?";
+                    $stmtPengingat = mysqli_prepare($conn, $deletePengingat);
+                    mysqli_stmt_bind_param($stmtPengingat, "i", $pengingat_id);
+                    mysqli_stmt_execute($stmtPengingat);
+                }
+                
+                // 5. Hapus dari monitoringkesehatan
+                $deleteMonitoring = "DELETE FROM monitoringkesehatan WHERE id = ?";
+                $stmtMonitoring = mysqli_prepare($conn, $deleteMonitoring);
+                mysqli_stmt_bind_param($stmtMonitoring, "i", $monitoring_id);
+                mysqli_stmt_execute($stmtMonitoring);
+            }
+            
+            // 6. Terakhir, hapus dari rekam_kesehatan
+            $deleteRekam = "DELETE FROM rekam_kesehatan WHERE id = ?";
+            $stmtRekam = mysqli_prepare($conn, $deleteRekam);
+            mysqli_stmt_bind_param($stmtRekam, "i", $id);
+            mysqli_stmt_execute($stmtRekam);
+            
+            // Commit transaksi
+            mysqli_commit($conn);
+            
+            $_SESSION['message'] = "Data berhasil dihapus dari semua tabel terkait";
+        } else {
+            $_SESSION['error'] = "Data tidak ditemukan";
+        }
+    } catch (Exception $e) {
+        // Rollback jika terjadi error
+        mysqli_rollback($conn);
+        $_SESSION['error'] = "Error: " . $e->getMessage();
+    }
+    
+    header("Location: rekamkesehatan.php");
+    exit();
+}
+
+// Logika Update Data
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
     $id = $_POST['id'];
     $nama = $_POST['nama'];
@@ -17,7 +95,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
     $pertolongan = $_POST['Pertolongan_Pertama'];
     
     try {
-        // Persiapkan query update
+        // Mulai transaksi
+        mysqli_begin_transaction($conn);
+        
+        // Update rekam_kesehatan
         $stmt = $conn->prepare("UPDATE rekam_kesehatan 
                               SET nama = ?, 
                                   nis = ?, 
@@ -27,7 +108,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
                                   tanggal = CURRENT_TIMESTAMP
                               WHERE id = ?");
         
-        // Bind parameter
         $stmt->bind_param("sssssi", 
             $nama, 
             $nis, 
@@ -38,17 +118,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
         );
         
         if ($stmt->execute()) {
-            header("Location: " . $_SERVER['PHP_SELF'] . "?message=Data berhasil diupdate");
+            // Update monitoringkesehatan jika ada
+            $stmtMonitoring = $conn->prepare("UPDATE monitoringkesehatan 
+                                            SET nama = ?,
+                                                keluhan = ?,
+                                                diagnosis = ?
+                                            WHERE nis = ?");
+            
+            $stmtMonitoring->bind_param("ssss",
+                $nama,
+                $keluhan,
+                $diagnosis,
+                $nis
+            );
+            
+            $stmtMonitoring->execute();
+            
+            mysqli_commit($conn);
+            $_SESSION['message'] = "Data berhasil diupdate";
+            header("Location: " . $_SERVER['PHP_SELF']);
             exit();
         } else {
             throw new Exception("Gagal mengupdate data: " . $stmt->error);
         }
     } catch (Exception $e) {
+        mysqli_rollback($conn);
         $pesanError = "Error: " . $e->getMessage();
+        $_SESSION['error'] = $pesanError;
     }
 }
 
-// Modifikasi fungsi untuk mengambil semua rekam kesehatan dengan pengurutan berdasarkan tanggal
+// Fungsi untuk mengambil semua rekam kesehatan
 function ambilSemuaRekamKesehatan() {
     global $conn;
     $result = $conn->query("SELECT *, 
@@ -58,7 +158,7 @@ function ambilSemuaRekamKesehatan() {
     return $result->fetch_all(MYSQLI_ASSOC);
 }
 
-// Modifikasi logika pencarian
+// Logika Pencarian
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 $searchResults = array();
 
@@ -96,6 +196,7 @@ if (!empty($search)) {
 } else {
     $daftarRekamKesehatan = ambilSemuaRekamKesehatan();
 }
+
 ?>
 
 <!DOCTYPE html>
@@ -939,7 +1040,7 @@ if (!empty($search)) {
                     <th>NIS</th>
                     <th>Keluhan</th>
                     <th>Diagnosis</th>
-                    <th>Pertolongan Pertama</th>
+                    <th>Tindakan</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
@@ -956,7 +1057,7 @@ if (!empty($search)) {
                         <a href="#" onclick="openEditModal(<?php echo htmlspecialchars(json_encode($rekam)); ?>)" class="icon-button edit" title="Edit">
                             <i class="fas fa-pen"></i>
                         </a>
-                        <a href="hapusrekam.php?id=<?php echo $rekam['id']; ?>" class="icon-button delete" title="Hapus" onclick="return confirm('Anda yakin ingin menghapus data ini?');">
+                        <a href="rekamkesehatan.php?action=delete&id=<?php echo $rekam['id']; ?>" class="icon-button delete" title="Hapus" onclick="return confirm('Anda yakin ingin menghapus data ini?');">
                             <i class="fas fa-trash"></i>
                         </a>
                     </td>

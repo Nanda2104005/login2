@@ -68,6 +68,7 @@ function getStudentData($conn, $search, $type) {
         echo json_encode(['error' => $e->getMessage()]);
     }
 }
+
 // Handle AJAX requests
 if (isset($_GET['action']) && $_GET['action'] === 'getStudent') {
     if (isset($_GET['nis'])) {
@@ -82,7 +83,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'getStudent') {
 $pesanSukses = "";
 $pesanError = "";
 
-
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $nama = isset($_POST['nama']) ? htmlspecialchars(trim($_POST['nama'])) : '';
     $nis = isset($_POST['nis']) ? htmlspecialchars(trim($_POST['nis'])) : '';
@@ -92,6 +92,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $keluhan = isset($_POST['keluhan']) ? htmlspecialchars(trim($_POST['keluhan'])) : '';
     $diagnosis = isset($_POST['diagnosis']) ? htmlspecialchars(trim($_POST['diagnosis'])) : '';
     $pertolongan = isset($_POST['pertolongan']) ? htmlspecialchars(trim($_POST['pertolongan'])) : '';
+    $nama_obat = isset($_POST['nama_obat']) ? htmlspecialchars(trim($_POST['nama_obat'])) : '';
+    $jumlah_obat = isset($_POST['jumlah_obat']) ? intval($_POST['jumlah_obat']) : 0;
 
     try {
         $user_id = getUserId($conn, $_SESSION['username']);
@@ -103,11 +105,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             throw new Exception("Mohon lengkapi semua data yang diperlukan.");
         }
 
-        // Begin transaction
-        $conn->begin_transaction();
+        mysqli_begin_transaction($conn);
 
-        // 1. Insert ke pengingatobat terlebih dahulu
-        $stmtPengingat = $conn->prepare("INSERT INTO pengingatobat 
+        // Insert ke pengingatobat terlebih dahulu
+        $stmt = mysqli_prepare($conn, "INSERT INTO pengingatobat 
             (patient_id, condition_name, severity, user_id) 
             VALUES (?, ?, ?, ?)");
         
@@ -115,95 +116,115 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $condition_name = $status == 'Sakit' ? $diagnosis : 'Sehat';
         $severity = $status == 'Sakit' ? 'Medium' : 'Low';
         
-        $stmtPengingat->bind_param("sssi", 
+        mysqli_stmt_bind_param($stmt, "sssi", 
             $patient_id, $condition_name, $severity, $user_id
         );
         
-        if (!$stmtPengingat->execute()) {
-            throw new Exception("Error executing pengingat statement: " . $stmtPengingat->error);
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Error executing pengingat statement: " . mysqli_stmt_error($stmt));
         }
         
-        $pengingat_id = $stmtPengingat->insert_id;
-        $stmtPengingat->close();
+        $pengingat_id = mysqli_insert_id($conn);
+        mysqli_stmt_close($stmt);
 
-        // Di bagian insert ke monitoringkesehatan, ubah query-nya menjadi:
-$stmt = $conn->prepare("INSERT INTO monitoringkesehatan 
-(nama, nis, keluhan, diagnosis, kelas, suhu, status, pertolongan_pertama, pengingat_id, user_id) 
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        // Jika status sakit dan ada pemberian obat
+        if ($status === 'Sakit' && !empty($nama_obat) && $jumlah_obat > 0) {
+            // Cek stok obat
+            $stmt = mysqli_prepare($conn, "SELECT jumlah FROM stok_obat WHERE nama = ? FOR UPDATE");
+            mysqli_stmt_bind_param($stmt, "s", $nama_obat);
+            mysqli_stmt_execute($stmt);
+            $result = mysqli_stmt_get_result($stmt);
+            $row = mysqli_fetch_assoc($result);
+            $stok_current = $row['jumlah'];
 
-if (!$stmt) {
-throw new Exception("Error preparing monitoring statement: " . $conn->error);
-}
+            if ($stok_current < $jumlah_obat) {
+                throw new Exception("Stok obat tidak mencukupi!");
+            }
 
-$stmt->bind_param("sssssdssii", 
-$nama, $nis, $keluhan, $diagnosis, $kelas, $suhu, $status, $pertolongan, $pengingat_id, $user_id
-);
+            // Update stok obat
+            $stmt = mysqli_prepare($conn, "UPDATE stok_obat SET jumlah = jumlah - ? WHERE nama = ?");
+            mysqli_stmt_bind_param($stmt, "is", $jumlah_obat, $nama_obat);
+            mysqli_stmt_execute($stmt);
+            
+            // Simpan info obat di pengingatobat
+            $stmt = mysqli_prepare($conn, "UPDATE pengingatobat SET nama_obat = ? WHERE id = ?");
+            mysqli_stmt_bind_param($stmt, "si", $nama_obat, $pengingat_id);
+            mysqli_stmt_execute($stmt);
+        }
+
+        // Insert ke monitoringkesehatan
+        $stmt = mysqli_prepare($conn, "INSERT INTO monitoringkesehatan 
+            (nama, nis, keluhan, diagnosis, kelas, suhu, status, pertolongan_pertama, pengingat_id, user_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+        mysqli_stmt_bind_param($stmt, "sssssdssii", 
+            $nama, $nis, $keluhan, $diagnosis, $kelas, $suhu, $status, $pertolongan, $pengingat_id, $user_id
+        );
         
-        if (!$stmt->execute()) {
-            throw new Exception("Error executing monitoring statement: " . $stmt->error);
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Error executing monitoring statement: " . mysqli_stmt_error($stmt));
         }
         
-        $monitoring_id = $stmt->insert_id;
-        $stmt->close();
+        $monitoring_id = mysqli_insert_id($conn);
+        mysqli_stmt_close($stmt);
 
-        // 3. Update pengingatobat dengan monitoring_id
-        $stmtUpdatePengingat = $conn->prepare("UPDATE pengingatobat SET monitoring_id = ? WHERE id = ?");
-        $stmtUpdatePengingat->bind_param("ii", $monitoring_id, $pengingat_id);
-        
-        if (!$stmtUpdatePengingat->execute()) {
-            throw new Exception("Error updating pengingat with monitoring_id: " . $stmtUpdatePengingat->error);
-        }
-        $stmtUpdatePengingat->close();
-
-        // 4. Insert ke rekam_kesehatan
-        $stmtRekam = $conn->prepare("INSERT INTO rekam_kesehatan 
+        // Insert ke rekam_kesehatan
+        $stmt = mysqli_prepare($conn, "INSERT INTO rekam_kesehatan 
             (nama, nis, keluhan, diagnosis, Pertolongan_Pertama, user_id) 
             VALUES (?, ?, ?, ?, ?, ?)");
         
-        if (!$stmtRekam) {
-            throw new Exception("Error preparing rekam statement: " . $conn->error);
-        }
-
-        $stmtRekam->bind_param("sssssi", 
+        mysqli_stmt_bind_param($stmt, "sssssi", 
             $nama, $nis, $keluhan, $diagnosis, $pertolongan, $user_id
         );
         
-        if (!$stmtRekam->execute()) {
-            throw new Exception("Error executing rekam statement: " . $stmtRekam->error);
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Error executing rekam statement: " . mysqli_stmt_error($stmt));
         }
-        $stmtRekam->close();
+        mysqli_stmt_close($stmt);
 
-        // Commit transaction
-        $conn->commit();
+        mysqli_commit($conn);
         $pesanSukses = "Data berhasil ditambahkan!";
 
     } catch (Exception $e) {
-        if ($conn && $conn->connect_error === null) {
-            $conn->rollback();
-        }
+        mysqli_rollback($conn);
         $pesanError = $e->getMessage();
     }
 }
+
 // Bagian menampilkan data
 $daftarRekamKesehatan = [];
 try {
-    $query = "SELECT m.*, u.nama_lengkap 
+    $query = "SELECT m.*, u.nama_lengkap, p.nama_obat 
               FROM monitoringkesehatan m 
               LEFT JOIN users u ON m.user_id = u.id 
+              LEFT JOIN pengingatobat p ON m.pengingat_id = p.id
               ORDER BY m.id DESC";
-    $result = $conn->query($query);
+    $result = mysqli_query($conn, $query);
     
-    if ($result === false) {
-        throw new Exception($conn->error);
+    if (!$result) {
+        throw new Exception(mysqli_error($conn));
     }
     
-    while($row = $result->fetch_assoc()) {
+    while($row = mysqli_fetch_assoc($result)) {
         $daftarRekamKesehatan[] = $row;
     }
-    $result->close();
+    mysqli_free_result($result);
     
 } catch (Exception $e) {
     $pesanError = "Error mengambil data: " . $e->getMessage();
+}
+
+// Query untuk mendapatkan daftar obat
+$obat_list = [];
+try {
+    $stmt = mysqli_prepare($conn, "SELECT nama FROM stok_obat WHERE jumlah > 0");
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    while($row = mysqli_fetch_assoc($result)) {
+        $obat_list[] = $row['nama'];
+    }
+} catch (Exception $e) {
+    $pesanError = "Error mengambil data obat: " . $e->getMessage();
 }
 ?>
 
@@ -215,6 +236,7 @@ try {
     <title>Monitoring Kesehatan Siswa</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" rel="stylesheet">
+
     <style>
        /* Reset and Variables */
 /* Modern Health Monitoring System Theme */
@@ -509,9 +531,34 @@ tr:hover {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--primary-dark);
 }
+
+.btn-back {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: var(--primary-color);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1000;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.btn-back:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+}
     </style>
 </head>
 <body>
+    <a href="dashboard.php" class="btn-back">
+        <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
+    </a>
     
     <div class="container">
         <header>
@@ -560,12 +607,30 @@ tr:hover {
                     <input type="text" name="diagnosis" id="diagnosis" required>
                 </div>
                 <div class="form-group">
-                    <label for="pertolongan">Pertolongan Pertama:</label>
+                    <label for="pertolongan">Tindakan:</label>
                     <textarea name="pertolongan" id="pertolongan" rows="3" class="form-control"></textarea>
                 </div>
+
+                <!-- Field obat yang hanya muncul jika status Sakit -->
+                <div class="form-group obat-fields" style="display: none;">
+                    <label for="nama_obat">Nama Obat:</label>
+                    <select name="nama_obat" id="nama_obat" class="form-control">
+                        <option value="">Pilih Obat</option>
+                        <?php foreach($obat_list as $obat): ?>
+                            <option value="<?php echo htmlspecialchars($obat); ?>">
+                                <?php echo htmlspecialchars($obat); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group obat-fields" style="display: none;">
+                    <label for="jumlah_obat">Jumlah Obat:</label>
+                    <input type="number" name="jumlah_obat" id="jumlah_obat" min="1" class="form-control">
+                </div>
+
                 <button type="submit" class="btn-submit">Tambah Siswa</button>
             </form>
-            
         </div>
 
         <table>
@@ -579,7 +644,8 @@ tr:hover {
                     <th>Status</th>
                     <th>Keluhan</th>
                     <th>Diagnosis</th>
-                    <th>Pertolongan Pertama</th>
+                    <th>Tindakan</th>
+                    <th>Obat</th>
                 </tr>
             </thead>
             <tbody id="siswaTableBody">
@@ -589,102 +655,149 @@ tr:hover {
                     <td><?php echo htmlspecialchars($rekam['nama']); ?></td>
                     <td><?php echo htmlspecialchars($rekam['nis']); ?></td>
                     <td><?php echo htmlspecialchars($rekam['kelas']); ?></td>
-                    <td><?php echo htmlspecialchars($rekam['suhu']); ?>°C</td>
-                    <td><?php echo htmlspecialchars($rekam['status']); ?></td>
-                    <td><?php echo htmlspecialchars($rekam['keluhan']); ?></td>
-                    <td><?php echo htmlspecialchars($rekam['diagnosis']); ?></td>
-                    <td><?php echo htmlspecialchars($rekam['pertolongan_pertama']); ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                   <td><?php echo htmlspecialchars($rekam['suhu']); ?>°C</td>
+                   <td><?php echo htmlspecialchars($rekam['status']); ?></td>
+                   <td><?php echo htmlspecialchars($rekam['keluhan']); ?></td>
+                   <td><?php echo htmlspecialchars($rekam['diagnosis']); ?></td>
+                   <td><?php echo htmlspecialchars($rekam['pertolongan_pertama']); ?></td>
+                   <td>
+                       <?php 
+                       if ($rekam['status'] === 'Sakit') {
+                           echo htmlspecialchars($rekam['nama_obat'] ?: '-');
+                       } else {
+                           echo '-';
+                       }
+                       ?>
+                   </td>
+               </tr>
+               <?php endforeach; ?>
+           </tbody>
+       </table>
+   </div>
 
-       
+   <script>
+       document.addEventListener('DOMContentLoaded', function() {
+           const nisInput = document.getElementById('nis');
+           const namaInput = document.getElementById('nama');
+           const statusSelect = document.getElementById('status');
+           const obatFields = document.querySelectorAll('.obat-fields');
+           let isUpdating = false;
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-    const nisInput = document.getElementById('nis');
-    const namaInput = document.getElementById('nama');
-    let isUpdating = false;
+           // Fungsi untuk menampilkan/menyembunyikan field obat
+           function toggleObatFields(status) {
+               obatFields.forEach(field => {
+                   field.style.display = status === 'Sakit' ? 'block' : 'none';
+               });
+               
+               // Reset nilai field obat jika status bukan Sakit
+               if (status !== 'Sakit') {
+                   document.getElementById('nama_obat').value = '';
+                   document.getElementById('jumlah_obat').value = '';
+               }
+           }
 
-    async function searchStudent(searchTerm, searchType) {
-        if (isUpdating || !searchTerm) return;
-        
-        try {
-            isUpdating = true;
-            const response = await fetch(`?action=getStudent&${searchType}=${encodeURIComponent(searchTerm)}`);
-            if (!response.ok) throw new Error('Network response was not ok');
-            
-            const data = await response.json();
-            
-            if (data && (data.nama || data.nis)) {
-                if (searchType === 'nis') {
-                    namaInput.value = data.nama;
-                } else if (searchType === 'nama') {
-                    nisInput.value = data.nis;
-                }
-            }
-        } catch (error) {
-            console.error('Search error:', error);
-        } finally {
-            isUpdating = false;
-        }
-    }
+           // Event listener untuk perubahan status
+           statusSelect.addEventListener('change', function() {
+               toggleObatFields(this.value);
+           });
 
-    function debounce(func, wait) {
-        let timeout;
-        return function(...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
+           async function searchStudent(searchTerm, searchType) {
+               if (isUpdating || !searchTerm) return;
+               
+               try {
+                   isUpdating = true;
+                   const response = await fetch(`?action=getStudent&${searchType}=${encodeURIComponent(searchTerm)}`);
+                   if (!response.ok) throw new Error('Network response was not ok');
+                   
+                   const data = await response.json();
+                   
+                   if (data && (data.nama || data.nis)) {
+                       if (searchType === 'nis') {
+                           namaInput.value = data.nama;
+                       } else if (searchType === 'nama') {
+                           nisInput.value = data.nis;
+                       }
+                   }
+               } catch (error) {
+                   console.error('Search error:', error);
+               } finally {
+                   isUpdating = false;
+               }
+           }
 
-    const debouncedSearch = debounce(searchStudent, 300);
+           function debounce(func, wait) {
+               let timeout;
+               return function(...args) {
+                   clearTimeout(timeout);
+                   timeout = setTimeout(() => func.apply(this, args), wait);
+               };
+           }
 
-    nisInput.addEventListener('input', function(e) {
-        const value = e.target.value.trim();
-        if (value) debouncedSearch(value, 'nis');
-    });
+           const debouncedSearch = debounce(searchStudent, 300);
 
-    namaInput.addEventListener('input', function(e) {
-        const value = e.target.value.trim();
-        if (value.length >= 3) debouncedSearch(value, 'nama');
-    });
-});
-    // Form validation
-    document.querySelector('form').addEventListener('submit', function(e) {
-        const suhu = parseFloat(document.getElementById('suhu').value);
-        
-        if (suhu < 35 || suhu > 42) {
-            e.preventDefault();
-            alert('Suhu harus berada dalam rentang 35°C - 42°C');
-            return false;
-        }
+           nisInput.addEventListener('input', function(e) {
+               const value = e.target.value.trim();
+               if (value) debouncedSearch(value, 'nis');
+           });
 
-        const nis = document.getElementById('nis').value;
-        if (!/^\d+$/.test(nis)) {
-            e.preventDefault();
-            alert('NIS harus berupa angka');
-            return false;
-        }
+           namaInput.addEventListener('input', function(e) {
+               const value = e.target.value.trim();
+               if (value.length >= 3) debouncedSearch(value, 'nama');
+           });
 
-        const kelas = document.getElementById('kelas').value;
-        if (kelas.length < 2) {
-            e.preventDefault();
-            alert('Kelas harus diisi dengan benar (minimal 3 karakter)');
-            return false;
-        }
-    });
+           // Form validation
+           document.querySelector('form').addEventListener('submit', function(e) {
+               const suhu = parseFloat(document.getElementById('suhu').value);
+               
+               if (suhu < 35 || suhu > 42) {
+                   e.preventDefault();
+                   alert('Suhu harus berada dalam rentang 35°C - 42°C');
+                   return false;
+               }
 
-    // Alert auto-hide
-    const alerts = document.querySelectorAll('.alert');
-    alerts.forEach(alert => {
-        setTimeout(() => {
-            alert.style.transition = 'opacity 0.5s ease-out';
-            alert.style.opacity = '0';
-            setTimeout(() => alert.remove(), 500);
-        }, 5000);
-    });
-    </script>
+               const nis = document.getElementById('nis').value;
+               if (!/^\d+$/.test(nis)) {
+                   e.preventDefault();
+                   alert('NIS harus berupa angka');
+                   return false;
+               }
+
+               const kelas = document.getElementById('kelas').value;
+               if (kelas.length < 2) {
+                   e.preventDefault();
+                   alert('Kelas harus diisi dengan benar (minimal 2 karakter)');
+                   return false;
+               }
+
+               // Validasi field obat jika status Sakit
+               if (statusSelect.value === 'Sakit') {
+                   const namaObat = document.getElementById('nama_obat').value;
+                   const jumlahObat = document.getElementById('jumlah_obat').value;
+                   
+                   if (!namaObat) {
+                       e.preventDefault();
+                       alert('Pilih obat yang akan diberikan');
+                       return false;
+                   }
+
+                   if (!jumlahObat || jumlahObat < 1) {
+                       e.preventDefault();
+                       alert('Masukkan jumlah obat yang valid');
+                       return false;
+                   }
+               }
+           });
+
+           // Alert auto-hide
+           const alerts = document.querySelectorAll('.alert');
+           alerts.forEach(alert => {
+               setTimeout(() => {
+                   alert.style.transition = 'opacity 0.5s ease-out';
+                   alert.style.opacity = '0';
+                   setTimeout(() => alert.remove(), 500);
+               }, 5000);
+           });
+       });
+   </script>
 </body>
 </html>

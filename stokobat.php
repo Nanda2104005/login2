@@ -547,103 +547,99 @@ try {
                     <div class="form-group">
                         <label for="edit_jumlah">Jumlah:</label>
                         <input type="number" id="edit_jumlah" name="jumlah" min="0" required>
-                    </div>
+                   </div>
 
-                    <div class="form-group">
-                        <label for="edit_dosis">Dosis:</label>
-                        <input type="text" id="edit_dosis" name="dosis" required>
-                    </div>
+                   <div class="form-group">
+                       <label for="edit_dosis">Dosis:</label>
+                       <input type="text" id="edit_dosis" name="dosis" required>
+                   </div>
 
-                    <div class="form-group">
-                        <label for="edit_diperbarui">Tanggal Diperbarui:</label>
-                        <input type="date" id="edit_diperbarui" name="diperbarui" required>
-                    </div>
+                   <div class="form-group">
+                       <label for="edit_diperbarui">Tanggal Diperbarui:</label>
+                       <input type="date" id="edit_diperbarui" name="diperbarui" required>
+                   </div>
 
-                    <div class="form-group">
-                        <label for="edit_tanggal_kadaluarsa">Tanggal Kadaluarsa:</label>
-                        <input type="date" id="edit_tanggal_kadaluarsa" name="tanggal_kadaluarsa" required>
-                    </div>
+                   <div class="form-group">
+                       <label for="edit_tanggal_kadaluarsa">Tanggal Kadaluarsa:</label>
+                       <input type="date" id="edit_tanggal_kadaluarsa" name="tanggal_kadaluarsa" required>
+                   </div>
 
-                    <div class="form-group">
-                        <label for="edit_id_pengingat">ID Pengingat:</label>
-                        <select id="edit_id_pengingat" name="id_pengingat" required>
-                            <?php
-                            try {
-                                $stmt = $conn->prepare("SELECT id FROM pengingatobat");
-                                $stmt->execute();
-                                $pengingat_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                                foreach($pengingat_ids as $id) {
-                                    echo "<option value=\"$id\">$id</option>";
-                                }
-                            } catch(PDOException $e) {
-                                echo "<option value=\"\">Error loading IDs</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
+                   <div class="form-group">
+                       <label for="edit_id_pengingat">ID Pengingat:</label>
+                       <select id="edit_id_pengingat" name="id_pengingat" required>
+                           <?php
+                           try {
+                               $stmt = $conn->prepare("SELECT id FROM pengingatobat");
+                               $stmt->execute();
+                               $pengingat_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                               foreach($pengingat_ids as $id) {
+                                   echo "<option value=\"$id\">$id</option>";
+                               }
+                           } catch(PDOException $e) {
+                               echo "<option value=\"\">Error loading IDs</option>";
+                           }
+                           ?>
+                       </select>
+                   </div>
 
-                    <button type="submit" class="btn">
-                        <i class="fas fa-save"></i> Simpan Perubahan
-                    </button>
-                </form>
-            </div>
-        </div>
+                   <button type="submit" class="btn">
+                       <i class="fas fa-save"></i> Simpan Perubahan
+                   </button>
+               </form>
+           </div>
+       </div>
 
-        <!-- Form tersembunyi untuk delete -->
-        <form id="deleteForm" method="POST" style="display: none;">
-            <input type="hidden" name="delete" value="1">
-            <input type="hidden" id="delete_id_stok" name="id_stok" value="">
-        </form>
-    </div>
+       <!-- Form tersembunyi untuk delete -->
+       <form id="deleteForm" method="POST" style="display: none;">
+           <input type="hidden" name="delete" value="1">
+           <input type="hidden" id="delete_id_stok" name="id_stok" value="">
+       </form>
+   </div>
 
-    <script>
-function editItem(item) {
-    document.getElementById('editModal').style.display = 'block';
-    document.getElementById('edit_id_stok').value = item.id_stok;
-    document.getElementById('edit_nama').value = item.nama;
-    document.getElementById('edit_jumlah').value = item.jumlah;
-    document.getElementById('edit_dosis').value = item.dosis;
-    document.getElementById('edit_diperbarui').value = item.diperbarui;
-    document.getElementById('edit_tanggal_kadaluarsa').value = item.tanggal_kadaluarsa;
-    document.getElementById('edit_id_pengingat').value = item.id_pengingat;
-}
+   <script>
+       function editItem(item) {
+           document.getElementById('editModal').style.display = 'block';
+           document.getElementById('edit_id_stok').value = item.id_stok;
+           document.getElementById('edit_nama').value = item.nama;
+           document.getElementById('edit_jumlah').value = item.jumlah;
+           document.getElementById('edit_dosis').value = item.dosis;
+           document.getElementById('edit_diperbarui').value = item.diperbarui;
+           document.getElementById('edit_tanggal_kadaluarsa').value = item.tanggal_kadaluarsa;
+           document.getElementById('edit_id_pengingat').value = item.id_pengingat;
+       }
 
-function deleteItem(id_stok) {
-    if (confirm('Apakah Anda yakin ingin menghapus item ini?')) {
-        // Buat form untuk delete
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.style.display = 'none'; // Sembunyikan form
-        
-        // Input untuk tanda delete
-        const deleteInput = document.createElement('input');
-        deleteInput.type = 'hidden';
-        deleteInput.name = 'delete';
-        deleteInput.value = '1';
-        
-        // Input untuk id_stok
-        const idInput = document.createElement('input');
-        idInput.type = 'hidden';
-        idInput.name = 'id_stok';
-        idInput.value = id_stok;
-        
-        // Gabungkan dan submit
-        form.appendChild(deleteInput);
-        form.appendChild(idInput);
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
+       function deleteItem(id_stok) {
+           if (confirm('Apakah Anda yakin ingin menghapus item ini?')) {
+               const form = document.createElement('form');
+               form.method = 'POST';
+               form.style.display = 'none';
+               
+               const deleteInput = document.createElement('input');
+               deleteInput.type = 'hidden';
+               deleteInput.name = 'delete';
+               deleteInput.value = '1';
+               
+               const idInput = document.createElement('input');
+               idInput.type = 'hidden';
+               idInput.name = 'id_stok';
+               idInput.value = id_stok;
+               
+               form.appendChild(deleteInput);
+               form.appendChild(idInput);
+               document.body.appendChild(form);
+               form.submit();
+           }
+       }
 
-function closeModal() {
-    document.getElementById('editModal').style.display = 'none';
-}
+       function closeModal() {
+           document.getElementById('editModal').style.display = 'none';
+       }
 
-window.onclick = function(event) {
-    if (event.target == document.getElementById('editModal')) {
-        closeModal();
-    }
-}
-    </script>
+       window.onclick = function(event) {
+           if (event.target == document.getElementById('editModal')) {
+               closeModal();
+           }
+       }
+   </script>
 </body>
 </html>

@@ -175,8 +175,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_password'])) {
     white-space: nowrap; /* Prevent text wrapping */
 }
 
-th:first-child, 
-td:first-child {
+th:first-child,td:first-child {
+{
     width: 5%;
     white-space: nowrap; /* Prevent "No" column from wrapping */
     text-align: center; /* Center align the "No" column */

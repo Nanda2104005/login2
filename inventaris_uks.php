@@ -25,12 +25,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         jumlah = :jumlah,
                         satuan = :satuan,
                         tanggal_masuk = :tanggal_masuk,
-                        tanggal_kadaluarsa = :tanggal_kadaluarsa,
                         kondisi = :kondisi,
                         lokasi = :lokasi,
                         keterangan = :keterangan
                         WHERE id_barang = :id_barang";
-                        
+                                
                 $stmt = $conn->prepare($sql);
                 
                 $stmt->bindParam(':id_barang', $_POST['id_barang'], PDO::PARAM_INT);
@@ -39,25 +38,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $stmt->bindParam(':jumlah', $_POST['jumlah'], PDO::PARAM_INT);
                 $stmt->bindParam(':satuan', $_POST['satuan'], PDO::PARAM_STR);
                 $stmt->bindParam(':tanggal_masuk', $_POST['tanggal_masuk']);
-                $stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
                 $stmt->bindParam(':kondisi', $_POST['kondisi'], PDO::PARAM_STR);
                 $stmt->bindParam(':lokasi', $_POST['lokasi'], PDO::PARAM_STR);
                 $stmt->bindParam(':keterangan', $_POST['keterangan'], PDO::PARAM_STR);
-
+            
                 $stmt->execute();
                 $success_message = "Data berhasil diperbarui!";
             } else {
-                // Validasi hanya untuk penambahan data baru
-                if (empty($_POST['nama_barang']) || empty($_POST['kategori']) || empty($_POST['jumlah']) || 
-                    empty($_POST['satuan']) || empty($_POST['tanggal_masuk']) || empty($_POST['kondisi']) || 
-                    empty($_POST['lokasi'])) {
-                    throw new Exception("Semua field harus diisi!");
-                }
-
                 $sql = "INSERT INTO inventaris_uks (nama_barang, kategori, jumlah, satuan, tanggal_masuk, 
-                        tanggal_kadaluarsa, kondisi, lokasi, keterangan) 
-                        VALUES (:nama_barang, :kategori, :jumlah, :satuan, :tanggal_masuk, 
-                        :tanggal_kadaluarsa, :kondisi, :lokasi, :keterangan)";
+                        kondisi, lokasi, keterangan) 
+                        VALUES (:nama_barang, :kategori, :jumlah, :satuan, :tanggal_masuk,
+                        :kondisi, :lokasi, :keterangan)";
                 
                 $stmt = $conn->prepare($sql);
                 
@@ -66,11 +57,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $stmt->bindParam(':jumlah', $_POST['jumlah'], PDO::PARAM_INT);
                 $stmt->bindParam(':satuan', $_POST['satuan'], PDO::PARAM_STR);
                 $stmt->bindParam(':tanggal_masuk', $_POST['tanggal_masuk']);
-                $stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
                 $stmt->bindParam(':kondisi', $_POST['kondisi'], PDO::PARAM_STR);
                 $stmt->bindParam(':lokasi', $_POST['lokasi'], PDO::PARAM_STR);
                 $stmt->bindParam(':keterangan', $_POST['keterangan'], PDO::PARAM_STR);
-
+            
                 $stmt->execute();
                 $success_message = "Data berhasil disimpan!";
             }
@@ -533,15 +523,14 @@ td {
             </div>
 
             <div class="form-group">
-                <label for="kategori">Kategori:</label>
-                <select id="kategori" name="kategori" required>
-                    <option value="">Pilih Kategori</option>
-                    <option value="Obat">Obat</option>
-                    <option value="Peralatan">Peralatan</option>
-                    <option value="Perlengkapan">Perlengkapan</option>
-                    <option value="Lainnya">Lainnya</option>
-                </select>
-            </div>
+    <label for="kategori">Kategori:</label>
+    <select id="kategori" name="kategori" required>
+        <option value="">Pilih Kategori</option>
+        <option value="Peralatan">Peralatan</option>
+        <option value="Perlengkapan">Perlengkapan</option>
+        <option value="Lainnya">Lainnya</option>
+    </select>
+</div>
 
             <div class="form-group">
                 <label for="jumlah">Jumlah:</label>
@@ -564,11 +553,6 @@ td {
             <div class="form-group">
                 <label for="tanggal_masuk">Tanggal Masuk:</label>
                 <input type="date" id="tanggal_masuk" name="tanggal_masuk" required>
-            </div>
-
-            <div class="form-group">
-                <label for="tanggal_kadaluarsa">Tanggal Kadaluarsa:</label>
-                <input type="date" id="tanggal_kadaluarsa" name="tanggal_kadaluarsa">
             </div>
 
             <div class="form-group">
@@ -607,24 +591,26 @@ td {
         <!-- Tabel Data -->
         <?php if (!empty($data_inventaris)): ?>
             <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>No.</th>
-                            <th>Nama Barang</th>
-                            <th>Kategori</th>
-                            <th>Jumlah</th>
-                            <th>Satuan</th>
-                            <th>Tanggal Masuk</th>
-                            <th>Tanggal Kadaluarsa</th>
-                            <th>Kondisi</th>
-                            <th>Lokasi</th>
-                            <th>Keterangan</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
+            <table>
+    <thead>
+        <tr>
+            <th>No.</th>
+            <th>Nama Barang</th>
+            <th>Kategori</th>
+            <th>Jumlah</th>
+            <th>Satuan</th>
+            <th>Tanggal Masuk</th>
+            <!-- Hapus kolom Tanggal Kadaluarsa -->
+            <th>Kondisi</th>
+            <th>Lokasi</th>
+            <th>Keterangan</th>
+            <th>Aksi</th>
+        </tr>
+    </thead>
+    <tbody>
                     <tbody>
                         <?php 
+                        $no = 1;
                         $no = 1;
                         foreach ($data_inventaris as $item): 
                         ?>
@@ -635,13 +621,7 @@ td {
                                 <td><?php echo htmlspecialchars($item['jumlah']); ?></td>
                                 <td><?php echo htmlspecialchars($item['satuan']); ?></td>
                                 <td><?php echo date('d/m/Y', strtotime($item['tanggal_masuk'])); ?></td>
-                                <td>
-                                    <?php 
-                                    echo !empty($item['tanggal_kadaluarsa']) 
-                                        ? date('d/m/Y', strtotime($item['tanggal_kadaluarsa']))
-                                        : '-';
-                                    ?>
-                                </td>
+                                <!-- Hapus kolom Tanggal Kadaluarsa -->
                                 <td>
                                     <span class="status-badge status-<?php echo strtolower($item['kondisi']); ?>">
                                         <?php echo htmlspecialchars($item['kondisi']); ?>
@@ -686,15 +666,21 @@ td {
                         <input type="text" id="edit_nama_barang" name="nama_barang" required>
                     </div>
 
-                    <div class="form-group">
-                        <label for="edit_kategori">Kategori:</label>
-                        <select id="edit_kategori" name="kategori" required>
-                            <option value="Obat">Obat</option>
-                            <option value="Peralatan">Peralatan</option>
-                            <option value="Perlengkapan">Perlengkapan</option>
-                            <option value="Lainnya">Lainnya</option>
-                        </select>
-                    </div>
+                    <!-- Di form edit, ubah bagian kategori menjadi: -->
+<div class="form-group">
+    <label for="edit_kategori">Kategori:</label>
+    <select id="edit_kategori" name="kategori" required>
+        <option value="Peralatan">Peralatan</option>
+        <option value="Perlengkapan">Perlengkapan</option>
+        <option value="Lainnya">Lainnya</option>
+    </select>
+</div>
+
+<!-- Hapus form group tanggal kadaluarsa -->
+<!-- <div class="form-group">
+    <label for="edit_tanggal_kadaluarsa">Tanggal Kadaluarsa:</label>
+    <input type="date" id="edit_tanggal_kadaluarsa" name="tanggal_kadaluarsa">
+</div> -->
 
                     <div class="form-group">
                         <label for="edit_jumlah">Jumlah:</label>
@@ -718,10 +704,7 @@ td {
                         <input type="date" id="edit_tanggal_masuk" name="tanggal_masuk" required>
                     </div>
 
-                    <div class="form-group">
-                        <label for="edit_tanggal_kadaluarsa">Tanggal Kadaluarsa:</label>
-                        <input type="date" id="edit_tanggal_kadaluarsa" name="tanggal_kadaluarsa">
-                    </div>
+                   
 
                     <div class="form-group">
                         <label for="edit_kondisi">Kondisi:</label>
@@ -758,33 +741,74 @@ td {
     </div>
 
     <script>
-    function editItem(item) {
-        // Tampilkan modal
-        document.getElementById('editModal').style.display = 'block';
-        
-        // Isi form dengan data yang ada
-        document.getElementById('edit_id_barang').value = item.id_barang;
-        document.getElementById('edit_nama_barang').value = item.nama_barang;
-        document.getElementById('edit_kategori').value = item.kategori;
-        document.getElementById('edit_jumlah').value = item.jumlah;
-        document.getElementById('edit_satuan').value = item.satuan;
-        document.getElementById('edit_tanggal_masuk').value = item.tanggal_masuk;
-        document.getElementById('edit_tanggal_kadaluarsa').value = item.tanggal_kadaluarsa || '';
-        document.getElementById('edit_kondisi').value = item.kondisi;
-        document.getElementById('edit_lokasi').value = item.lokasi;
-        document.getElementById('edit_keterangan').value = item.keterangan || '';
-    }
+// Fungsi untuk menangani perubahan kategori pada form tambah dan edit
+function aturPerubahanKategori(idPilihanKategori, idInputTanggal) {
+    const pilihanKategori = document.getElementById(idPilihanKategori);
+    const inputTanggal = document.getElementById(idInputTanggal);
+    const labelTanggal = inputTanggal.previousElementSibling;
 
-    function closeModal() {
-        document.getElementById('editModal').style.display = 'none';
-    }
+    pilihanKategori.addEventListener('change', function() {
+        const kategoriTerpilih = this.value;
+        const tanggalWajib = !['Peralatan', 'Perlengkapan'].includes(kategoriTerpilih);
 
-    // Tutup modal jika user mengklik di luar modal
-    window.onclick = function(event) {
-        if (event.target == document.getElementById('editModal')) {
-            closeModal();
+        if (tanggalWajib && kategoriTerpilih === 'Obat') {
+            inputTanggal.required = true;
+            labelTanggal.textContent = 'Tanggal Kadaluarsa: *';
+            inputTanggal.parentElement.style.display = 'block';
+        } else {
+            inputTanggal.required = false;
+            labelTanggal.textContent = 'Tanggal Kadaluarsa:';
+            if (['Peralatan', 'Perlengkapan'].includes(kategoriTerpilih)) {
+                inputTanggal.value = '';
+                inputTanggal.parentElement.style.display = 'none';
+            } else {
+                inputTanggal.parentElement.style.display = 'block';
+            }
         }
+    });
+
+    pilihanKategori.dispatchEvent(new Event('change'));
+}
+
+// Inisialisasi untuk kedua form saat dokumen dimuat
+document.addEventListener('DOMContentLoaded', function() {
+    // Pengaturan untuk form tambah
+    aturPerubahanKategori('kategori', 'tanggal_kadaluarsa');
+    
+    // Pengaturan untuk form edit
+    aturPerubahanKategori('edit_kategori', 'edit_tanggal_kadaluarsa');
+});
+
+// Fungsi untuk menangani proses edit data
+// Hapus semua fungsi yang berhubungan dengan tanggal kadaluarsa
+<script>
+function editItem(item) {
+    // Buka modal
+    document.getElementById('editModal').style.display = 'block';
+    
+    // Isi form dengan data yang ada
+    document.getElementById('edit_id_barang').value = item.id_barang;
+    document.getElementById('edit_nama_barang').value = item.nama_barang;
+    document.getElementById('edit_kategori').value = item.kategori;
+    document.getElementById('edit_jumlah').value = item.jumlah;
+    document.getElementById('edit_satuan').value = item.satuan;
+    document.getElementById('edit_tanggal_masuk').value = item.tanggal_masuk;
+    document.getElementById('edit_kondisi').value = item.kondisi;
+    document.getElementById('edit_lokasi').value = item.lokasi;
+    document.getElementById('edit_keterangan').value = item.keterangan || '';
+}
+
+// Fungsi untuk menutup modal
+function closeModal() {
+    document.getElementById('editModal').style.display = 'none';
+}
+
+// Tutup modal saat mengklik di luar area modal
+window.onclick = function(event) {
+    if (event.target == document.getElementById('editModal')) {
+        closeModal();
     }
-    </script>
+}
+</script>
 </body>
 </html>

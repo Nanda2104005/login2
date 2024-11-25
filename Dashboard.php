@@ -385,7 +385,7 @@ $role = $_SESSION['role'];
     </div>
     <div class="dashboard-grid">
         <?php if ($role === 'admin'): ?>
-            <div class="dashboard-card">
+                        <div class="dashboard-card">
                 <i class="fas fa-heartbeat health-icon"></i>
                 <div>
                     <h3><i class="fas fa-heartbeat icon"></i>Monitoring Kesehatan</h3>
@@ -394,26 +394,29 @@ $role = $_SESSION['role'];
                 <a href="monitoringkesehatan.php" class="btn-card">Buka Monitoring Kesehatan</a>
             </div>
 
+            <!-- Rekam Kesehatan Digital -->
             <div class="dashboard-card">
-                <i class="fas fa-notes-medical feature-icon"></i>
+                <i class="fas fa-file-medical feature-icon"></i>
                 <div>
-                    <h3><i class="fas fa-notes-medical icon"></i>Rekam Kesehatan Digital</h3>
+                    <h3><i class="fas fa-file-medical icon"></i>Rekam Kesehatan Digital</h3>
                     <p>Dapatkan notifikasi real-time untuk kondisi kesehatan yang memerlukan penanganan segera.</p>
                 </div>
                 <a href="RekamKesehatan.php" class="btn-card">Buka Rekam Kesehatan</a>
             </div>
-            
+
+            <!-- Sistem Peringatan Dini -->
             <div class="dashboard-card">
-                <i class="fas fa-heartbeat health-icon"></i>
+                <i class="fas fa-bell health-icon"></i>
                 <div>
-                    <h3><i class="fas fa-heartbeat icon"></i>Sistem Peringatan Dini</h3>
+                    <h3><i class="fas fa-bell icon"></i>Sistem Peringatan Dini</h3>
                     <p>Dapatkan notifikasi real-time untuk kondisi kesehatan yang memerlukan penanganan segera.</p>
                 </div>
                 <a href="peringatandini.php" class="btn-card">Buka Monitoring Sistem Peringatan Dini</a>
             </div>
 
+            <!-- Analisis Kesehatan -->
             <div class="dashboard-card">
-                <i class="fas fa-chart-line health-icon"></i>
+                <i class="fas fa-chart-bar health-icon"></i>
                 <div>
                     <h3><i class="fas fa-chart-bar icon"></i>Analisis Kesehatan</h3>
                     <p>Visualisasi data kesehatan komprehensif dengan grafik dan laporan yang mudah dipahami berupa Kalkulator BMI,Tekanan Darah dan Gula Darah.</p>
@@ -421,65 +424,69 @@ $role = $_SESSION['role'];
                 <a href="analisiskesehatan.php" class="btn-card">Buka Analisis Kesehatan</a>
             </div>
 
+            <!-- Penyimpanan File dan Video Admin -->
             <div class="dashboard-card">
-                <i class="fas fa-save save-icon"></i>
+                <i class="fas fa-folder-open save-icon"></i>
                 <div>
-                    <h3><i class="fas fa-save"></i>Penyimpanan File dan Video Admin</h3>
+                    <h3><i class="fas fa-folder-open icon"></i>Penyimpanan File dan Video Admin</h3>
                     <p>Disini anda bisa melihat foto dan video yang admin simpan sebelumnya.</p>
                 </div>
                 <a href="savefilefotodanvideo.php" class="btn-card">Buka Penyimpanan File Foto dan Video</a>
             </div>
 
+            <!-- Upload Edukasi Kesehatan -->
             <div class="dashboard-card">
-                <i class="fas fa-save save-icon"></i>
+                <i class="fas fa-upload save-icon"></i>
                 <div>
-                    <h3><i class="fas fa-save"></i>Upload Edukasi Kesehatan</h3>
+                    <h3><i class="fas fa-upload icon"></i>Upload Edukasi Kesehatan</h3>
                     <p>Disini anda bisa melihat foto dan video kalian yang sudah kalian simpan.</p>
                 </div>
                 <a href="edukasikesehatan.php" class="btn-card">Buka Upload Edukasi Kesehatan</a>
             </div>
 
+            <!-- Inventaris Kesehatan -->
             <div class="dashboard-card">
-                <i class="fas fa-save save-icon"></i>
+                <i class="fas fa-box-open save-icon"></i>
                 <div>
-                    <h3><i class="fas fa-save"></i>Inventaris Kesehatan</h3>
+                    <h3><i class="fas fa-box-open icon"></i>Inventaris Kesehatan</h3>
                     <p>Disini anda bisa melihat barang barang simpan.</p>
                 </div>
                 <a href="inventaris_uks.php" class="btn-card">Buka Inventaris Kesehatan</a>
             </div>
 
+            <!-- Daftar Users -->
             <div class="dashboard-card">
-                <i class="fas fa-save save-icon"></i>
+                <i class="fas fa-users save-icon"></i>
                 <div>
-                    <h3><i class="fas fa-save"></i>Daftar Users</h3>
+                    <h3><i class="fas fa-users icon"></i>Daftar Users</h3>
                     <p>Disini anda bisa melihat akun.</p>
                 </div>
                 <a href="userslist.php" class="btn-card">Buka Users List</a>
             </div>
 
+            <!-- Stok Obat -->
             <div class="dashboard-card">
-                <i class="fas fa-save save-icon"></i>
+                <i class="fas fa-pills save-icon"></i>
                 <div>
-                    <h3><i class="fas fa-save"></i>Stok Obat</h3>
+                    <h3><i class="fas fa-pills icon"></i>Stok Obat</h3>
                     <p>Disini anda bisa melihat barang barang simpan.</p>
                 </div>
                 <a href="stokobat.php" class="btn-card">Buka Stok Obat</a>
             </div>
-
             
 
 
         <?php endif; ?>
 
         <?php if ($role === 'siswa'): ?>
-            <div class="dashboard-card">
-                <i class="fas fa-save save-icon"></i>
-                <div>
-                    <h3><i class="fas fa-save"></i>Edukasi Kesehatan Siswa</h3>
-                    <p>Disini anda bisa melihat foto dan video edukasi yang telah disediakan.</p>
-                </div>
-                <a href="savefilefotodanvideosiswa.php" class="btn-card">Buka Edukasi Kesehatan Siswa</a>
+                    <div class="dashboard-card">
+            <i class="fas fa-graduation-cap save-icon"></i>
+            <div>
+                <h3><i class="fas fa-graduation-cap icon"></i>Edukasi Kesehatan Siswa</h3>
+                <p>Disini anda bisa melihat foto dan video edukasi yang telah disediakan.</p>
             </div>
+            <a href="savefilefotodanvideosiswa.php" class="btn-card">Buka Edukasi Kesehatan Siswa</a>
+        </div>
         <?php endif; ?>
     </div>
 </div>

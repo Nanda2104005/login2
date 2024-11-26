@@ -4,7 +4,7 @@ $username = "root";
 $password = "";
 $dbname = "user_database";
 
-// Bagian delete diperbaiki
+// Bagian delete tetap seperti sebelumnya
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete']) && isset($_POST['id_stok'])) {
     try {
         $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
@@ -50,8 +50,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete']) && isset($_P
                     jumlah = :jumlah,
                     dosis = :dosis,
                     diperbarui = :diperbarui,
-                    tanggal_kadaluarsa = :tanggal_kadaluarsa,
-                    id_pengingat = :id_pengingat
+                    tanggal_kadaluarsa = :tanggal_kadaluarsa
                     WHERE id_stok = :id_stok";
                     
             $stmt = $conn->prepare($sql);
@@ -62,32 +61,70 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete']) && isset($_P
             $stmt->bindParam(':dosis', $_POST['dosis'], PDO::PARAM_STR);
             $stmt->bindParam(':diperbarui', $_POST['diperbarui']);
             $stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
-            $stmt->bindParam(':id_pengingat', $_POST['id_pengingat'], PDO::PARAM_INT);
 
             $stmt->execute();
             $conn->commit();
             $success_message = "Data berhasil diperbarui!";
         } else {
+            // Add new record with auto ID
             if (empty($_POST['nama']) || empty($_POST['jumlah']) || empty($_POST['dosis']) || 
                 empty($_POST['diperbarui']) || empty($_POST['tanggal_kadaluarsa'])) {
                 throw new Exception("Semua field harus diisi!");
             }
 
-            $sql = "INSERT INTO stok_obat (nama, jumlah, dosis, diperbarui, tanggal_kadaluarsa, id_pengingat) 
-                    VALUES (:nama, :jumlah, :dosis, :diperbarui, :tanggal_kadaluarsa, :id_pengingat)";
-            
-            $stmt = $conn->prepare($sql);
-            
-            $stmt->bindParam(':nama', $_POST['nama'], PDO::PARAM_STR);
-            $stmt->bindParam(':jumlah', $_POST['jumlah'], PDO::PARAM_INT);
-            $stmt->bindParam(':dosis', $_POST['dosis'], PDO::PARAM_STR);
-            $stmt->bindParam(':diperbarui', $_POST['diperbarui']);
-            $stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
-            $stmt->bindParam(':id_pengingat', $_POST['id_pengingat'], PDO::PARAM_INT);
+            // Cek apakah obat dengan nama yang sama sudah ada
+            $check_obat = $conn->prepare("SELECT s.id_stok, s.id_pengingat, s.jumlah FROM stok_obat s 
+                                        WHERE LOWER(nama) = LOWER(:nama) LIMIT 1");
+            $check_obat->bindParam(':nama', $_POST['nama'], PDO::PARAM_STR);
+            $check_obat->execute();
+            $existing_obat = $check_obat->fetch(PDO::FETCH_ASSOC);
 
-            $stmt->execute();
-            $conn->commit();
-            $success_message = "Data berhasil disimpan!";
+            if ($existing_obat) {
+                // Update jumlah stok yang sudah ada
+                $new_jumlah = $existing_obat['jumlah'] + $_POST['jumlah'];
+                $update_sql = "UPDATE stok_obat SET 
+                              jumlah = :jumlah,
+                              diperbarui = :diperbarui,
+                              tanggal_kadaluarsa = :tanggal_kadaluarsa
+                              WHERE id_stok = :id_stok";
+                
+                $update_stmt = $conn->prepare($update_sql);
+                $update_stmt->bindParam(':jumlah', $new_jumlah, PDO::PARAM_INT);
+                $update_stmt->bindParam(':diperbarui', $_POST['diperbarui']);
+                $update_stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
+                $update_stmt->bindParam(':id_stok', $existing_obat['id_stok'], PDO::PARAM_INT);
+                $update_stmt->execute();
+                
+                $conn->commit();
+                $success_message = "Data obat ditambahkan ke stok yang sudah ada!";
+            } else {
+                // Insert ke pengingatobat dulu untuk mendapatkan ID
+                $sql_pengingat = "INSERT INTO pengingatobat (patient_id, condition_name, severity, nama_obat, waktu_pengingat) 
+                                 VALUES ('AUTO', 'AUTO', 'Normal', :nama_obat, CURRENT_TIME())";
+                $stmt_pengingat = $conn->prepare($sql_pengingat);
+                $stmt_pengingat->bindParam(':nama_obat', $_POST['nama'], PDO::PARAM_STR);
+                $stmt_pengingat->execute();
+                
+                // Dapatkan ID yang baru dibuat
+                $id_pengingat = $conn->lastInsertId();
+
+                // Insert ke stok_obat
+                $sql = "INSERT INTO stok_obat (nama, jumlah, dosis, diperbarui, tanggal_kadaluarsa, id_pengingat) 
+                        VALUES (:nama, :jumlah, :dosis, :diperbarui, :tanggal_kadaluarsa, :id_pengingat)";
+                
+                $stmt = $conn->prepare($sql);
+                
+                $stmt->bindParam(':nama', $_POST['nama'], PDO::PARAM_STR);
+                $stmt->bindParam(':jumlah', $_POST['jumlah'], PDO::PARAM_INT);
+                $stmt->bindParam(':dosis', $_POST['dosis'], PDO::PARAM_STR);
+                $stmt->bindParam(':diperbarui', $_POST['diperbarui']);
+                $stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
+                $stmt->bindParam(':id_pengingat', $id_pengingat, PDO::PARAM_INT);
+
+                $stmt->execute();
+                $conn->commit();
+                $success_message = "Data berhasil disimpan!";
+            }
         }
     } catch(Exception $e) {
         if (isset($conn)) {
@@ -101,11 +138,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete']) && isset($_P
 try {
     $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    // Query untuk dropdown ID Pengingat
-    $stmt = $conn->prepare("SELECT id FROM pengingatobat ORDER BY id");
-    $stmt->execute();
-    $pengingat_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
     // Query untuk data stok obat
     $stmt = $conn->prepare("SELECT * FROM stok_obat ORDER BY diperbarui DESC");
@@ -125,284 +157,265 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-:root {
-        --primary-color: #1ca883;
-        --secondary-color: #f0f9f6;
-        --accent-color: #ff6b6b;
-        --text-color: #2c3e50;
-        --background-color: #ecf0f1;
-        --card-hover: #e8f5f1;
-        --danger-color: #e74c3c;
-    }
+        :root {
+            --primary-color: #1ca883;
+            --secondary-color: #f0f9f6;
+            --accent-color: #ff6b6b;
+            --text-color: #2c3e50;
+            --background-color: #ecf0f1;
+            --card-hover: #e8f5f1;
+            --danger-color: #e74c3c;
+        }
 
-    body {
-        font-family: 'Poppins', sans-serif;
-        margin: 0;
-        padding: 0;
-        background: linear-gradient(135deg, var(--secondary-color), #e8f5f1);
-        color: var(--text-color);
-        min-height: 100vh;
-    }
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, var(--secondary-color), #e8f5f1);
+            color: var(--text-color);
+            min-height: 100vh;
+        }
 
-    .container {
-        display: flex;
-        gap: 20px;
-        padding: 20px;
-        margin-top: 40px;
-        flex-wrap: wrap;
-    }
-
-    form {
-        flex: 0 0 350px;
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-        height: fit-content;
-    }
-
-    .dashboard-header {
-        background: linear-gradient(135deg, var(--primary-color), #159f7f);
-        color: white;
-        padding: 1.5rem;
-        border-radius: 15px;
-        text-align: center;
-        margin-bottom: 20px;
-        width: 100%;
-    }
-
-    .form-group {
-        margin-bottom: 15px;
-    }
-
-    label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 500;
-        color: var(--text-color);
-    }
-
-    input[type="text"],
-    input[type="number"],
-    input[type="date"],
-    select,
-    textarea {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        box-sizing: border-box;
-        margin-bottom: 5px;
-    }
-
-    .table-container {
-        flex: 1;
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-        min-width: 0;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-        font-size: 0.9rem;
-    }
-
-    th {
-        background: var(--primary-color);
-        color: white;
-        padding: 12px;
-        text-align: left;
-        font-weight: 500;
-        white-space: nowrap;
-    }
-
-    td {
-        padding: 12px;
-        border-bottom: 1px solid #e2e8f0;
-    }
-
-    .btn {
-        background: var(--primary-color);
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
-    }
-
-    .btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(28, 168, 131, 0.2);
-    }
-
-    .action-buttons {
-        display: flex; gap: 8px;
-        align-items: center;
-    }
-
-    .btn-edit, 
-    .btn-delete {
-        background-color: #3498db;
-        color: white;
-        border: none;
-        width: 32px;
-        height: 32px;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-        box-shadow: 0 2px 4px rgba(52, 152, 219, 0.2);
-    }
-
-    .btn-edit:hover, 
-    .btn-delete:hover {
-        transform: translateY(-2px);
-    }
-
-    .btn-delete {
-        background-color: #ff5252;
-        box-shadow: 0 2px 4px rgba(255, 82, 82, 0.2);
-    }
-
-    .btn-delete:hover {
-        background-color: #ff1744;
-        box-shadow: 0 4px 6px rgba(255, 82, 82, 0.3);
-    }
-
-    .expired-row {
-        background-color: #ffe4e4 !important;
-    }
-
-    .expired-label {
-        color: #e74c3c;
-        font-weight: 600;
-        font-size: 0.8rem;
-        padding: 2px 6px;
-        border-radius: 4px;
-        background: #ffd5d5;
-        margin-left: 8px;
-        display: inline-block;
-    }
-
-    tr:nth-child(even) {
-        background-color: #f8f9fa;
-    }
-
-    tr.expired-row:nth-child(even) {
-        background-color: #ffe8e8 !important;
-    }
-
-    .btn-back {
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        background: var(--primary-color);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 20px;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        z-index: 1000;
-        transition: all 0.3s ease;
-        font-size: 0.9rem;
-    }
-
-    .modal {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 1000;
-        overflow-y: auto;
-        padding: 20px 0;
-    }
-
-    .modal-content {
-        background: white;
-        width: 90%;
-        max-width: 500px;
-        margin: 20px auto;
-        padding: 20px;
-        border-radius: 15px;
-        position: relative;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-
-    .alert {
-        padding: 12px;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        text-align: center;
-        width: 100%;
-    }
-
-    .alert.success {
-        background-color: #def7ec;
-        color: #0e9f6e;
-    }
-
-    .alert.error {
-        background-color: #fde2e8;
-        color: #e02424;
-    }
-
-    .close {
-        position: absolute;
-        right: 20px;
-        top: 15px;
-        font-size: 24px;
-        cursor: pointer;
-        color: var(--text-color);
-        transition: color 0.3s ease;
-    }
-
-    .close:hover {
-        color: var(--accent-color);
-    }
-
-    @media (max-width: 768px) {
         .container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        form {
+            flex: 0 0 350px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            height: fit-content;
+        }
+
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color), #159f7f);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        textarea {
+            width: 100%;
             padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            margin-bottom: 5px;
         }
-        
-        form, .table-container {
-            flex: 1 1 100%;
-        }
-        
+
         .table-container {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            min-width: 0;
             overflow-x: auto;
         }
-        
-        th, td {
-            padding: 8px;
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.9rem;
         }
-        
+
+        th {
+            background: var(--primary-color);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(28, 168, 131, 0.2);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-edit, 
+        .btn-delete {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .btn-edit:hover, 
+        .btn-delete:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-delete {
+            background-color: #ff5252;
+        }
+
+        .expired-row {
+            background-color: #ffe4e4 !important;
+        }
+
+        .expired-label {
+            color: #e74c3c;
+            font-weight: 600;
+            font-size: 0.8rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #ffd5d5;
+            margin-left: 8px;
+            display: inline-block;
+        }
+
         .btn-back {
-            position: static;
-            margin: 10px;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: var(--primary-color);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            transition: all 0.3s ease;
         }
-        
+
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            width: 100%;
+        }
+
+        .alert.success {
+            background-color: #def7ec;
+            color: #0e9f6e;
+        }
+
+        .alert.error {
+            background-color: #fde2e8;
+            color: #e02424;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
         .modal-content {
-            width: 95%;
-            margin: 10px;
+            background: white;
+            width: 90%;
+            max-width: 500px;
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 15px;
+            position: relative;
         }
-    }
+
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-color);
+            transition: color 0.3s ease;
+        }
+
+        .close:hover {
+            color: var(--accent-color);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            form, .table-container {
+                flex: 1 1 100%;
+            }
+            
+            .table-container {
+                overflow-x: auto;
+            }
+            
+            th, td {
+                padding: 8px;
+            }
+            
+            .btn-back {
+                position: static;
+                margin: 10px;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 10px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -451,24 +464,6 @@ try {
                 <input type="date" id="tanggal_kadaluarsa" name="tanggal_kadaluarsa" required>
             </div>
 
-            <div class="form-group">
-                <label for="id_pengingat">ID Pengingat:</label>
-                <select id="id_pengingat" name="id_pengingat" required>
-                    <?php
-                    try {
-                        $stmt = $conn->prepare("SELECT id FROM pengingatobat");
-                        $stmt->execute();
-                        $pengingat_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                        foreach($pengingat_ids as $id) {
-                            echo "<option value=\"$id\">$id</option>";
-                        }
-                    } catch(PDOException $e) {
-                        echo "<option value=\"\">Error loading IDs</option>";
-                    }
-                    ?>
-                </select>
-            </div>
-
             <button type="submit" class="btn">
                 <i class="fas fa-save"></i> Simpan Data
             </button>
@@ -486,7 +481,7 @@ try {
                             <th>Dosis</th>
                             <th>Tanggal Diperbarui</th>
                             <th>Tanggal Kadaluarsa</th>
-                            <th>ID Pengingat</th>
+                            <th>ID Obat</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -547,99 +542,77 @@ try {
                     <div class="form-group">
                         <label for="edit_jumlah">Jumlah:</label>
                         <input type="number" id="edit_jumlah" name="jumlah" min="0" required>
-                   </div>
+                    </div>
 
-                   <div class="form-group">
-                       <label for="edit_dosis">Dosis:</label>
-                       <input type="text" id="edit_dosis" name="dosis" required>
-                   </div>
+                    <div class="form-group">
+                        <label for="edit_dosis">Dosis:</label>
+                        <input type="text" id="edit_dosis" name="dosis" required>
+                    </div>
 
-                   <div class="form-group">
-                       <label for="edit_diperbarui">Tanggal Diperbarui:</label>
-                       <input type="date" id="edit_diperbarui" name="diperbarui" required>
-                   </div>
+                    <div class="form-group">
+                        <label for="edit_diperbarui">Tanggal Diperbarui:</label>
+                        <input type="date" id="edit_diperbarui" name="diperbarui" required>
+                    </div>
 
-                   <div class="form-group">
-                       <label for="edit_tanggal_kadaluarsa">Tanggal Kadaluarsa:</label>
-                       <input type="date" id="edit_tanggal_kadaluarsa" name="tanggal_kadaluarsa" required>
-                   </div>
+                    <div class="form-group">
+                        <label for="edit_tanggal_kadaluarsa">Tanggal Kadaluarsa:</label>
+                        <input type="date" id="edit_tanggal_kadaluarsa" name="tanggal_kadaluarsa" required>
+                    </div>
 
-                   <div class="form-group">
-                       <label for="edit_id_pengingat">ID Pengingat:</label>
-                       <select id="edit_id_pengingat" name="id_pengingat" required>
-                           <?php
-                           try {
-                               $stmt = $conn->prepare("SELECT id FROM pengingatobat");
-                               $stmt->execute();
-                               $pengingat_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                               foreach($pengingat_ids as $id) {
-                                   echo "<option value=\"$id\">$id</option>";
-                               }
-                           } catch(PDOException $e) {
-                               echo "<option value=\"\">Error loading IDs</option>";
-                           }
-                           ?>
-                       </select>
-                   </div>
+                    <input type="hidden" id="edit_id_pengingat" name="id_pengingat">
 
-                   <button type="submit" class="btn">
-                       <i class="fas fa-save"></i> Simpan Perubahan
-                   </button>
-               </form>
-           </div>
-       </div>
+                    <button type="submit" class="btn">
+                        <i class="fas fa-save"></i> Simpan Perubahan
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 
-       <!-- Form tersembunyi untuk delete -->
-       <form id="deleteForm" method="POST" style="display: none;">
-           <input type="hidden" name="delete" value="1">
-           <input type="hidden" id="delete_id_stok" name="id_stok" value="">
-       </form>
-   </div>
+    <script>
+        function editItem(item) {
+            document.getElementById('editModal').style.display = 'block';
+            document.getElementById('edit_id_stok').value = item.id_stok;
+            document.getElementById('edit_nama').value = item.nama;
+            document.getElementById('edit_jumlah').value = item.jumlah;
+            document.getElementById('edit_dosis').value = item.dosis;
+            document.getElementById('edit_diperbarui').value = item.diperbarui;
+            document.getElementById('edit_tanggal_kadaluarsa').value = item.tanggal_kadaluarsa;
+            document.getElementById('edit_id_pengingat').value = item.id_pengingat;
+        }
 
-   <script>
-       function editItem(item) {
-           document.getElementById('editModal').style.display = 'block';
-           document.getElementById('edit_id_stok').value = item.id_stok;
-           document.getElementById('edit_nama').value = item.nama;
-           document.getElementById('edit_jumlah').value = item.jumlah;
-           document.getElementById('edit_dosis').value = item.dosis;
-           document.getElementById('edit_diperbarui').value = item.diperbarui;
-           document.getElementById('edit_tanggal_kadaluarsa').value = item.tanggal_kadaluarsa;
-           document.getElementById('edit_id_pengingat').value = item.id_pengingat;
-       }
+        function deleteItem(id_stok) {
+            if (confirm('Apakah Anda yakin ingin menghapus item ini?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.style.display = 'none';
+                
+                const deleteInput = document.createElement('input');
+                deleteInput.type = 'hidden';
+                deleteInput.name = 'delete';
+                deleteInput.value = '1';
+                
+                const idInput = document.createElement('input');
+                idInput.type = 'hidden';
+                idInput.name = 'id_stok';
+                idInput.value = id_stok;
+                
+                form.appendChild(deleteInput);
+                form.appendChild(idInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
 
-       function deleteItem(id_stok) {
-           if (confirm('Apakah Anda yakin ingin menghapus item ini?')) {
-               const form = document.createElement('form');
-               form.method = 'POST';
-               form.style.display = 'none';
-               
-               const deleteInput = document.createElement('input');
-               deleteInput.type = 'hidden';
-               deleteInput.name = 'delete';
-               deleteInput.value = '1';
-               
-               const idInput = document.createElement('input');
-               idInput.type = 'hidden';
-               idInput.name = 'id_stok';
-               idInput.value = id_stok;
-               
-               form.appendChild(deleteInput);
-               form.appendChild(idInput);
-               document.body.appendChild(form);
-               form.submit();
-           }
-       }
+        function closeModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
 
-       function closeModal() {
-           document.getElementById('editModal').style.display = 'none';
-       }
-
-       window.onclick = function(event) {
-           if (event.target == document.getElementById('editModal')) {
-               closeModal();
-           }
-       }
-   </script>
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('editModal')) {
+                closeModal();
+            }
+        }
+    </script>
 </body>
 </html>

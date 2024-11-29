@@ -129,27 +129,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         // Jika status sakit dan ada pemberian obat
         if ($status === 'Sakit' && !empty($nama_obat) && $jumlah_obat > 0) {
-            // Cek stok obat
+            // Cek stok obat terlebih dahulu
             $stmt = mysqli_prepare($conn, "SELECT jumlah FROM stok_obat WHERE nama = ? FOR UPDATE");
             mysqli_stmt_bind_param($stmt, "s", $nama_obat);
             mysqli_stmt_execute($stmt);
             $result = mysqli_stmt_get_result($stmt);
-            $row = mysqli_fetch_assoc($result);
-            $stok_current = $row['jumlah'];
-
-            if ($stok_current < $jumlah_obat) {
-                throw new Exception("Stok obat tidak mencukupi!");
-            }
-
-            // Update stok obat
-            $stmt = mysqli_prepare($conn, "UPDATE stok_obat SET jumlah = jumlah - ? WHERE nama = ?");
-            mysqli_stmt_bind_param($stmt, "is", $jumlah_obat, $nama_obat);
-            mysqli_stmt_execute($stmt);
             
-            // Simpan info obat di pengingatobat
-            $stmt = mysqli_prepare($conn, "UPDATE pengingatobat SET nama_obat = ? WHERE id = ?");
-            mysqli_stmt_bind_param($stmt, "si", $nama_obat, $pengingat_id);
-            mysqli_stmt_execute($stmt);
+            if ($result && $row = mysqli_fetch_assoc($result)) {
+                $stok_current = $row['jumlah'];
+                
+                // Validasi stok tersedia
+                if ($stok_current < $jumlah_obat) {
+                    throw new Exception("Stok obat tidak mencukupi! Stok tersedia: " . $stok_current);
+                }
+
+                // Update stok obat (hanya sekali)
+                $stmt = mysqli_prepare($conn, "UPDATE stok_obat SET jumlah = jumlah - ? WHERE nama = ?");
+                mysqli_stmt_bind_param($stmt, "is", $jumlah_obat, $nama_obat);
+                if (!mysqli_stmt_execute($stmt)) {
+                    throw new Exception("Gagal memperbarui stok obat");
+                }
+                
+                // Update info penggunaan obat di pengingatobat
+                $stmt = mysqli_prepare($conn, "UPDATE pengingatobat SET nama_obat = ?, jumlah = ? WHERE id = ?");
+                mysqli_stmt_bind_param($stmt, "sii", $nama_obat, $jumlah_obat, $pengingat_id);
+                if (!mysqli_stmt_execute($stmt)) {
+                    throw new Exception("Gagal memperbarui data pengingat obat");
+                }
+            } else {
+                throw new Exception("Obat '$nama_obat' tidak ditemukan dalam stok!");
+            }
         }
 
         // Insert ke monitoringkesehatan
@@ -194,7 +203,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 // Bagian menampilkan data
 $daftarRekamKesehatan = [];
 try {
-    $query = "SELECT m.*, u.nama_lengkap, p.nama_obat 
+    $query = "SELECT m.*, u.nama_lengkap, p.nama_obat, p.jumlah as jumlah_obat
               FROM monitoringkesehatan m 
               LEFT JOIN users u ON m.user_id = u.id 
               LEFT JOIN pengingatobat p ON m.pengingat_id = p.id
@@ -353,6 +362,12 @@ tr:last-child td {
 th:not(:last-child),
 td:not(:last-child) {
     border-right: 2px solid #ccc;
+}
+
+th:nth-last-child(1),
+td:nth-last-child(1) {
+    text-align: center; /* Agar angka berada di tengah */
+    min-width: 100px; /* Lebar minimum kolom */
 }
 
 /* Mempertegas header */
@@ -556,6 +571,7 @@ tr:hover {
     </style>
 </head>
 <body>
+    
     <a href="dashboard.php" class="btn-back">
         <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
     </a>
@@ -634,45 +650,55 @@ tr:hover {
         </div>
 
         <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Nama</th>
-                    <th>NIS</th>
-                    <th>Kelas</th>
-                    <th>Suhu (°C)</th>
-                    <th>Status</th>
-                    <th>Keluhan</th>
-                    <th>Diagnosis</th>
-                    <th>Tindakan</th>
-                    <th>Obat</th>
-                </tr>
-            </thead>
-            <tbody id="siswaTableBody">
-                <?php foreach ($daftarRekamKesehatan as $rekam): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($rekam['id']); ?></td>
-                    <td><?php echo htmlspecialchars($rekam['nama']); ?></td>
-                    <td><?php echo htmlspecialchars($rekam['nis']); ?></td>
-                    <td><?php echo htmlspecialchars($rekam['kelas']); ?></td>
-                   <td><?php echo htmlspecialchars($rekam['suhu']); ?>°C</td>
-                   <td><?php echo htmlspecialchars($rekam['status']); ?></td>
-                   <td><?php echo htmlspecialchars($rekam['keluhan']); ?></td>
-                   <td><?php echo htmlspecialchars($rekam['diagnosis']); ?></td>
-                   <td><?php echo htmlspecialchars($rekam['pertolongan_pertama']); ?></td>
-                   <td>
-                       <?php 
-                       if ($rekam['status'] === 'Sakit') {
-                           echo htmlspecialchars($rekam['nama_obat'] ?: '-');
-                       } else {
-                           echo '-';
-                       }
-                       ?>
-                   </td>
-               </tr>
-               <?php endforeach; ?>
-           </tbody>
-       </table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nama</th>
+            <th>NIS</th>
+            <th>Kelas</th>
+            <th>Suhu (°C)</th>
+            <th>Status</th>
+            <th>Keluhan</th>
+            <th>Diagnosis</th>
+            <th>Tindakan</th>
+            <th>Obat</th>
+            <th>Jumlah Obat</th> <!-- Kolom baru -->
+        </tr>
+    </thead>
+    <tbody id="siswaTableBody">
+        <?php foreach ($daftarRekamKesehatan as $rekam): ?>
+        <tr>
+            <td><?php echo htmlspecialchars($rekam['id']); ?></td>
+            <td><?php echo htmlspecialchars($rekam['nama']); ?></td>
+            <td><?php echo htmlspecialchars($rekam['nis']); ?></td>
+            <td><?php echo htmlspecialchars($rekam['kelas']); ?></td>
+            <td><?php echo htmlspecialchars($rekam['suhu']); ?>°C</td>
+            <td><?php echo htmlspecialchars($rekam['status']); ?></td>
+            <td><?php echo htmlspecialchars($rekam['keluhan']); ?></td>
+            <td><?php echo htmlspecialchars($rekam['diagnosis']); ?></td>
+            <td><?php echo htmlspecialchars($rekam['pertolongan_pertama']); ?></td>
+            <td>
+                <?php 
+                if ($rekam['status'] === 'Sakit') {
+                    echo htmlspecialchars($rekam['nama_obat'] ?: '-');
+                } else {
+                    echo '-';
+                }
+                ?>
+            </td>
+            <td>
+                <?php 
+                if ($rekam['status'] === 'Sakit' && $rekam['nama_obat']) {
+                    echo htmlspecialchars($rekam['jumlah_obat'] ?: '0') . ' pcs';
+                } else {
+                    echo '-';
+                }
+                ?>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
    </div>
 
    <script>

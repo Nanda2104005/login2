@@ -511,12 +511,6 @@ if (isset($_GET['message'])) {
     <div class="container">
         <header>
             <h1>Data Edukasi Kesehatan</h1>
-            <div class="user-info">
-                <span>Selamat datang, <?php echo htmlspecialchars($_SESSION['username']); ?></span>
-                <a href="login.php" class="btn" style="margin-left: 1rem;">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
-            </div>
         </header>
 
         <?php if (isset($alert_message)): ?>

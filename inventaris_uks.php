@@ -654,6 +654,7 @@ td {
 
         <!-- Modal Edit -->
         <div id="editModal" class="modal">
+            
             <div class="modal-content">
                 <span class="close" onclick="closeModal()">&times;</span>
                 <h2>Edit Data Inventaris</h2>
@@ -740,6 +741,123 @@ td {
         </div>
     </div>
 
+    </div> <!-- Penutup dari container -->
+
+    <script>
+    // Function to safely parse JSON string
+    function safeJSONParse(str) {
+        try {
+            return JSON.parse(str);
+        } catch (e) {
+            console.error('Error parsing JSON:', e);
+            return null;
+        }
+    }
+
+    // Function to format date as YYYY-MM-DD
+    function formatDate(dateStr) {
+        try {
+            // Check if dateStr is already in YYYY-MM-DD format
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                return dateStr;
+            }
+            
+            // Handle d/m/Y format
+            const [day, month, year] = dateStr.split('/');
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        } catch (e) {
+            console.error('Error formatting date:', e);
+            return dateStr;
+        }
+    }
+
+    // Function to handle edit item
+    function editItem(item) {
+        try {
+            // If item is a string, parse it
+            const itemData = typeof item === 'string' ? safeJSONParse(item) : item;
+            if (!itemData) {
+                console.error('Invalid item data');
+                return;
+            }
+
+            // Show modal
+            const modal = document.getElementById('editModal');
+            if (modal) {
+                modal.style.display = 'block';
+            }
+
+            // Set form values
+            const formFields = {
+                'edit_id_barang': itemData.id_barang,
+                'edit_nama_barang': itemData.nama_barang,
+                'edit_kategori': itemData.kategori,
+                'edit_jumlah': itemData.jumlah,
+                'edit_satuan': itemData.satuan,
+                'edit_tanggal_masuk': formatDate(itemData.tanggal_masuk),
+                'edit_kondisi': itemData.kondisi,
+                'edit_lokasi': itemData.lokasi,
+                'edit_keterangan': itemData.keterangan || ''
+            };
+
+            // Update each form field
+            Object.entries(formFields).forEach(([fieldId, value]) => {
+                const element = document.getElementById(fieldId);
+                if (element) {
+                    element.value = value;
+                } else {
+                    console.warn(`Field ${fieldId} not found`);
+                }
+            });
+
+        } catch (error) {
+            console.error('Error in editItem:', error);
+            alert('Terjadi kesalahan saat membuka form edit. Silakan coba lagi.');
+        }
+    }
+
+    // Function to close modal
+    function closeModal() {
+        const modal = document.getElementById('editModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('editModal');
+        if (event.target === modal) {
+            closeModal();
+        }
+    }
+
+    // Initialize event listeners when document is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add close button functionality
+        const closeButton = document.querySelector('.close');
+        if (closeButton) {
+            closeButton.onclick = closeModal;
+        }
+
+        // Add form submission handling
+        const editForm = document.querySelector('#editModal form');
+        if (editForm) {
+            editForm.addEventListener('submit', function(e) {
+                const requiredFields = ['nama_barang', 'kategori', 'jumlah', 'satuan', 'tanggal_masuk', 'kondisi', 'lokasi'];
+                const missingFields = requiredFields.filter(field => !this.elements[field].value);
+                
+                if (missingFields.length > 0) {
+                    e.preventDefault();
+                    alert('Mohon lengkapi semua field yang wajib diisi.');
+                }
+            });
+        }
+    });
+    </script>
+</body>
+</html>
+
     <script>
 // Fungsi untuk menangani perubahan kategori pada form tambah dan edit
 function aturPerubahanKategori(idPilihanKategori, idInputTanggal) {
@@ -809,6 +927,7 @@ window.onclick = function(event) {
         closeModal();
     }
 }
+
 </script>
 </body>
 </html>

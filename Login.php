@@ -442,7 +442,7 @@ html {
     
     <div class="container">
         <div class="logo">
-            <img src="p.png" alt="M3 Care Logo">
+            <img src="Images/p.png" alt="M3 Care Logo">
         </div>
         
         <?php if (isset($error)): ?>

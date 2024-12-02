@@ -418,10 +418,10 @@ $role = $_SESSION['role'];
             <div class="dashboard-card">
                 <i class="fas fa-chart-bar health-icon"></i>
                 <div>
-                    <h3><i class="fas fa-chart-bar icon"></i>Analisis Kesehatan</h3>
+                    <h3><i class="fas fa-chart-bar icon"></i>Check BMI </h3>
                     <p>Visualisasi data kesehatan komprehensif dengan grafik dan laporan yang mudah dipahami berupa Kalkulator BMI,Tekanan Darah dan Gula Darah.</p>
                 </div>
-                <a href="analisiskesehatan.php" class="btn-card">Buka Analisis Kesehatan</a>
+                <a href="checkbmi.php" class="btn-card">Buka Check BMI</a>
             </div>
 
             <!-- Penyimpanan File dan Video Admin -->

@@ -716,6 +716,23 @@ body {
         max-width: 100%;
     }
 }
+
+.navbar-brand img {
+            width: 40px; /* Adjust size as needed */
+            height: 40px;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .navbar-brand {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
         
 
         
@@ -723,13 +740,13 @@ body {
 </head>
 <body>
 
-    <div class="bg-animation"></div>
+<div class="bg-animation"></div>
 
-    <nav class="navbar">
-        <div class="navbar-content">
-            <a href="Home.php" class="navbar-brand">
-                <i class="fas fa-heartbeat"></i>
-                M3 Care
+<nav class="navbar">
+    <div class="navbar-content">
+        <a href="Home.php" class="navbar-brand">
+            <img src="images/m3-logo.png" alt="M3 Care Logo">
+            M3 Care
             </a>
             <div class="navbar-links">
                 <a href="dashboard.php" class="nav-link">
@@ -772,7 +789,7 @@ body {
                 </a>
             </div>
             <div class="hero-image">
-            <img src="logo MU.png" alt="Healthcare Illustration" style="max-width: 300px; height: auto; float: right;">
+            <img src="images/logo MU.png" alt="Healthcare Illustration" style="max-width: 300px; height: auto; float: right;">
             </div>
         </div>
     </section>

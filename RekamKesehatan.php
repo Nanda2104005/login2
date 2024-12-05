@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['action']) && $_GET['acti
                 $monitoring_id = $dataMonitoring['id'];
                 $pengingat_id = $dataMonitoring['pengingat_id'];
                 
-                // 3. Hapus dari stok_obat
+                // 3. Hapus dari stok_obat yang terkait
                 if ($pengingat_id) {
                     $deleteStok = "DELETE FROM stok_obat WHERE id_pengingat = ?";
                     $stmtStok = mysqli_prepare($conn, $deleteStok);
@@ -98,7 +98,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
         // Mulai transaksi
         mysqli_begin_transaction($conn);
         
-        // Update rekam_kesehatan
+        // 1. Update rekam_kesehatan
         $stmt = $conn->prepare("UPDATE rekam_kesehatan 
                               SET nama = ?, 
                                   nis = ?, 
@@ -117,34 +117,68 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
             $id
         );
         
-        if ($stmt->execute()) {
-            // Update monitoringkesehatan jika ada
+        if (!$stmt->execute()) {
+            throw new Exception("Gagal mengupdate rekam kesehatan: " . $stmt->error);
+        }
+
+        // 2. Update monitoringkesehatan
+        // First, get the existing monitoring record for this NIS
+        $stmtCheck = $conn->prepare("SELECT id FROM monitoringkesehatan WHERE nis = ?");
+        $stmtCheck->bind_param("s", $nis);
+        $stmtCheck->execute();
+        $resultCheck = $stmtCheck->get_result();
+        
+        if ($resultCheck->num_rows > 0) {
+            // If monitoring record exists, update it
             $stmtMonitoring = $conn->prepare("UPDATE monitoringkesehatan 
                                             SET nama = ?,
                                                 keluhan = ?,
-                                                diagnosis = ?
+                                                diagnosis = ?,
+                                                pertolongan_pertama = ?
                                             WHERE nis = ?");
             
-            $stmtMonitoring->bind_param("ssss",
+            $stmtMonitoring->bind_param("sssss",
                 $nama,
                 $keluhan,
+                $diagnosis,
+                $pertolongan,
+                $nis
+            );
+            
+            if (!$stmtMonitoring->execute()) {
+                throw new Exception("Gagal mengupdate monitoring kesehatan: " . $stmtMonitoring->error);
+            }
+        }
+        
+        // 3. Update related pengingatobat if exists
+        $stmtPengingat = $conn->prepare("SELECT id FROM pengingatobat WHERE patient_id = ?");
+        $stmtPengingat->bind_param("s", $nis);
+        $stmtPengingat->execute();
+        $resultPengingat = $stmtPengingat->get_result();
+        
+        if ($resultPengingat->num_rows > 0) {
+            $stmtUpdatePengingat = $conn->prepare("UPDATE pengingatobat 
+                                                SET condition_name = ?
+                                                WHERE patient_id = ?");
+            
+            $stmtUpdatePengingat->bind_param("ss",
                 $diagnosis,
                 $nis
             );
             
-            $stmtMonitoring->execute();
-            
-            mysqli_commit($conn);
-            $_SESSION['message'] = "Data berhasil diupdate";
-            header("Location: " . $_SERVER['PHP_SELF']);
-            exit();
-        } else {
-            throw new Exception("Gagal mengupdate data: " . $stmt->error);
+            if (!$stmtUpdatePengingat->execute()) {
+                throw new Exception("Gagal mengupdate pengingat obat: " . $stmtUpdatePengingat->error);
+            }
         }
+            
+        mysqli_commit($conn);
+        $_SESSION['message'] = "Data berhasil diupdate di semua tabel terkait";
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit();
+            
     } catch (Exception $e) {
         mysqli_rollback($conn);
-        $pesanError = "Error: " . $e->getMessage();
-        $_SESSION['error'] = $pesanError;
+        $_SESSION['error'] = "Error: " . $e->getMessage();
     }
 }
 
@@ -196,7 +230,6 @@ if (!empty($search)) {
 } else {
     $daftarRekamKesehatan = ambilSemuaRekamKesehatan();
 }
-
 ?>
 
 <!DOCTYPE html>

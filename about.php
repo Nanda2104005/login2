@@ -228,8 +228,28 @@
         <p>Selamat datang di M3 Care, sistem informasi kesehatan terpadu yang dirancang khusus untuk komunitas SMA Muhammadiyah 3 Jember. Sistem kami menghadirkan solusi modern untuk pemantauan dan pengelolaan kesehatan siswa.</p>
 
         <div class="mission-card">
-            <h3><i class="fas fa-bullseye icon"></i>Misi Kami</h3>
-            <p>Mewujudkan lingkungan pembelajaran yang sehat dan mendukung melalui sistem informasi kesehatan yang inovatif, efisien, dan mudah diakses. Kami berkomitmen untuk mendukung kesejahteraan setiap siswa agar dapat mengembangkan potensi mereka secara maksimal.</p>
+            <h3><i class="fas fa-bullseye icon"></i>VISI SEKOLAH :</h3>
+            <p>
+“Mewujudkan Insan Mulia, Kreatif, Kolaboratif, dan Berdaya Saing”
+Visi
+Insan Mulia :
+Warga sekolah yang terus berproses menjadi pribadi yang berakhlak mulia serta memiliki keshalihan pribadi dan sosial sebagai wujud pribadi yang beriman dan bertakwa kepada Allah SWT
+Kreatif :
+Mendorong warga sekolah untuk berkarya dan melalui ide-ide kreatif dan produktif yang memberikan manfaat bagi diri pribadi, sekolah maupun masyarakat
+Kolaboratif :
+Kerjasama dengan sekolah dalam dan luar negeri serta memperluas jejaring kerjasama dengan berbagai lembaga pemerintah maupun swasta dalam menjalankan program sekolah untuk mencapai tujuan sekolah
+Berdaya Saing :
+Pembangunan karakter serta peningkatan kualitas akademik dan non akademik melalui program pembimbingan dan pelatihan yang mendorong peserta didik untuk berprestasi sesuai bakat dan minat yang dimilikinya
+<h3><i class="fas fa-bullseye icon"></i>MISI SEKOLAH :</h3>
+1.	Pembangunan karakter dan pengamalan nilai-nilai Islam dalam praktek muamalah yang terintegrasi melalui program intra dan ekstrakurikuler
+2.	Pembekalan ilmu pengetahuan sekaligus praktek ibadah mahdlah secara baik dan benar sesuai tuntunan Al Quran dan Hadits
+3.	Kolaborasi dengan Muhammadiyah, ortom dan lembaganya di berbagai level serta organisasi dan lembaga pemerintah maupun swasta lainnya.
+4.	Sinergi dan Kolaborasi dengan lembaga pendidikan dalam dan luar negeri
+5.	Mendorong program edupreneurship yang inovatif melalui program pemberdayaan ekosistem di dalam dan di sekitar lingkungan sekolah
+6.	Peningkatan sarana dan prasarana sekolah serta pembangunan Sistim Informasi Manajemen Sekolah
+7.	Program beasiswa bagi siswa miskin dan berprestasi melalui program Orangtua Asuh, beasiswa Lazismu, serta donatur lain yang tidak mengikat
+8.	Program akselerasi belajar khusus persiapan Seleksi Bersama Masuk PTN dan PTS favorit serta sekolah kedinasan dan TNI/POLRI
+9.	Penyempurnaan pengelolaan manajemen keuangan dan sumberdaya manusia Guru dan Tenaga Kependidikan (GTK)</p>
         </div>
 
         <h3><i class="fas fa-cogs icon"></i>Layanan Unggulan M3 Care</h3>

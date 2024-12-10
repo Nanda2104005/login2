@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['action']) && $_GET['acti
         // Mulai transaksi
         mysqli_begin_transaction($conn);
         
-        // 1. Dapatkan informasi dari rekam_kesehatan
+        // 1. Dapatkan NIS dari rekam_kesehatan
         $query = "SELECT nis FROM rekam_kesehatan WHERE id = ?";
         $stmt = mysqli_prepare($conn, $query);
         mysqli_stmt_bind_param($stmt, "i", $id);
@@ -26,59 +26,47 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['action']) && $_GET['acti
         
         if ($data) {
             $nis = $data['nis'];
-            
-            // 2. Cari data di monitoringkesehatan
-            $queryMonitoring = "SELECT id, pengingat_id FROM monitoringkesehatan WHERE nis = ?";
-            $stmtMonitoring = mysqli_prepare($conn, $queryMonitoring);
+
+            // 2. Hapus referensi di stok_obat terlebih dahulu
+            $updateStokObat = "UPDATE stok_obat SET id_pengingat = NULL WHERE id_pengingat IN 
+                            (SELECT id FROM pengingatobat WHERE patient_id = ?)";
+            $stmtStokObat = mysqli_prepare($conn, $updateStokObat);
+            mysqli_stmt_bind_param($stmtStokObat, "s", $nis);
+            mysqli_stmt_execute($stmtStokObat);
+
+            // 3. Hapus dari monitoringkesehatan karena memiliki FK ke pengingatobat
+            $deleteMonitoring = "DELETE FROM monitoringkesehatan WHERE nis = ?";
+            $stmtMonitoring = mysqli_prepare($conn, $deleteMonitoring);
             mysqli_stmt_bind_param($stmtMonitoring, "s", $nis);
             mysqli_stmt_execute($stmtMonitoring);
-            $resultMonitoring = mysqli_stmt_get_result($stmtMonitoring);
-            $dataMonitoring = mysqli_fetch_assoc($resultMonitoring);
+
+            // 4. Sekarang kita bisa menghapus dari pengingatobat
+            $deletePengingat = "DELETE FROM pengingatobat WHERE patient_id = ?";
+            $stmtPengingat = mysqli_prepare($conn, $deletePengingat);
+            mysqli_stmt_bind_param($stmtPengingat, "s", $nis);
             
-            if ($dataMonitoring) {
-                $monitoring_id = $dataMonitoring['id'];
-                $pengingat_id = $dataMonitoring['pengingat_id'];
-                
-                // 3. Hapus dari stok_obat yang terkait
-                if ($pengingat_id) {
-                    $deleteStok = "DELETE FROM stok_obat WHERE id_pengingat = ?";
-                    $stmtStok = mysqli_prepare($conn, $deleteStok);
-                    mysqli_stmt_bind_param($stmtStok, "i", $pengingat_id);
-                    mysqli_stmt_execute($stmtStok);
-                }
-                
-                // 4. Hapus dari pengingatobat
-                if ($pengingat_id) {
-                    $deletePengingat = "DELETE FROM pengingatobat WHERE id = ?";
-                    $stmtPengingat = mysqli_prepare($conn, $deletePengingat);
-                    mysqli_stmt_bind_param($stmtPengingat, "i", $pengingat_id);
-                    mysqli_stmt_execute($stmtPengingat);
-                }
-                
-                // 5. Hapus dari monitoringkesehatan
-                $deleteMonitoring = "DELETE FROM monitoringkesehatan WHERE id = ?";
-                $stmtMonitoring = mysqli_prepare($conn, $deleteMonitoring);
-                mysqli_stmt_bind_param($stmtMonitoring, "i", $monitoring_id);
-                mysqli_stmt_execute($stmtMonitoring);
+            if (!mysqli_stmt_execute($stmtPengingat)) {
+                throw new Exception("Gagal menghapus data dari pengingatobat: " . mysqli_stmt_error($stmtPengingat));
             }
-            
-            // 6. Terakhir, hapus dari rekam_kesehatan
+
+            // 5. Terakhir hapus dari rekam_kesehatan
             $deleteRekam = "DELETE FROM rekam_kesehatan WHERE id = ?";
             $stmtRekam = mysqli_prepare($conn, $deleteRekam);
             mysqli_stmt_bind_param($stmtRekam, "i", $id);
             mysqli_stmt_execute($stmtRekam);
-            
+
             // Commit transaksi
             mysqli_commit($conn);
-            
             $_SESSION['message'] = "Data berhasil dihapus dari semua tabel terkait";
+
         } else {
-            $_SESSION['error'] = "Data tidak ditemukan";
+            throw new Exception("Data tidak ditemukan");
         }
     } catch (Exception $e) {
         // Rollback jika terjadi error
         mysqli_rollback($conn);
         $_SESSION['error'] = "Error: " . $e->getMessage();
+        error_log("Error in deletion process: " . $e->getMessage());
     }
     
     header("Location: rekamkesehatan.php");
@@ -122,14 +110,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
         }
 
         // 2. Update monitoringkesehatan
-        // First, get the existing monitoring record for this NIS
         $stmtCheck = $conn->prepare("SELECT id FROM monitoringkesehatan WHERE nis = ?");
         $stmtCheck->bind_param("s", $nis);
         $stmtCheck->execute();
         $resultCheck = $stmtCheck->get_result();
         
         if ($resultCheck->num_rows > 0) {
-            // If monitoring record exists, update it
             $stmtMonitoring = $conn->prepare("UPDATE monitoringkesehatan 
                                             SET nama = ?,
                                                 keluhan = ?,
@@ -150,7 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update'])) {
             }
         }
         
-        // 3. Update related pengingatobat if exists
+        // 3. Update pengingatobat if exists
         $stmtPengingat = $conn->prepare("SELECT id FROM pengingatobat WHERE patient_id = ?");
         $stmtPengingat->bind_param("s", $nis);
         $stmtPengingat->execute();
@@ -232,6 +218,9 @@ if (!empty($search)) {
 }
 ?>
 
+<!DOCTYPE html>
+<html lang="id">
+<!-- Sisanya adalah HTML yang sama seperti sebelumnya -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -1090,9 +1079,12 @@ if (!empty($search)) {
                         <a href="#" onclick="openEditModal(<?php echo htmlspecialchars(json_encode($rekam)); ?>)" class="icon-button edit" title="Edit">
                             <i class="fas fa-pen"></i>
                         </a>
-                        <a href="rekamkesehatan.php?action=delete&id=<?php echo $rekam['id']; ?>" class="icon-button delete" title="Hapus" onclick="return confirm('Anda yakin ingin menghapus data ini?');">
-                            <i class="fas fa-trash"></i>
-                        </a>
+                        <a href="rekamkesehatan.php?action=delete&id=<?php echo $rekam['id']; ?>" 
+                            class="icon-button delete" 
+                            title="Hapus" 
+                            onclick="return confirm('Anda yakin ingin menghapus data ini?');">
+                                <i class="fas fa-trash"></i>
+                            </a>
                     </td>
                 </tr>
                 <?php endforeach; ?>

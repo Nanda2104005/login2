@@ -15,8 +15,10 @@ function getMonitoringData() {
               CASE 
                 WHEN m.status = 'Sakit' THEN 'severe'
                 ELSE 'healthy'
-              END as severity
+              END as severity,
+              p.notification_date, p.notification_time, p.description  
               FROM monitoringkesehatan m
+              LEFT JOIN pengingatobat p ON m.pengingat_id = p.id
               ORDER BY 
                 CASE WHEN m.status = 'Sakit' THEN 0 ELSE 1 END,
                 m.suhu DESC";
@@ -56,6 +58,21 @@ function updateMonitoringData($id, $data) {
     $result = mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
     
+    if ($result) {
+        // Update data di tabel pengingatobat
+        $query = "UPDATE pengingatobat SET
+                  notification_date = ?, notification_time = ?, description = ?
+                  WHERE id = (SELECT pengingat_id FROM monitoringkesehatan WHERE id = ?)";
+        
+        $stmt = mysqli_prepare($conn, $query);
+        mysqli_stmt_bind_param($stmt, "sssi", 
+            $data['notification_date'], $data['notification_time'], $data['description'], $id
+        );
+        
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_close($stmt);
+    }
+    
     return $result;
 }
 
@@ -68,7 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_id'])) {
         'suhu' => $_POST['suhu'],
         'status' => $_POST['status'],
         'keluhan' => $_POST['keluhan'],
-        'diagnosis' => $_POST['diagnosis']
+        'diagnosis' => $_POST['diagnosis'],
+        'notification_date' => $_POST['notification_date'],
+        'notification_time' => $_POST['notification_time'],
+        'description' => $_POST['description']
     );
     
     $updateResult = updateMonitoringData($edit_id, $update_data);
@@ -468,6 +488,10 @@ header h1 {
     background: var(--primary-dark);
 }
 
+.modal-scroll {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
 
     </style>
 </head>
@@ -533,6 +557,16 @@ header h1 {
                             <span class="info-label">Diagnosis</span>
                             <?php echo htmlspecialchars($data['diagnosis']); ?>
                         </div>
+                        <div class="info-item">
+                            <span class="info-label">Notifikasi</span>
+                            <?php echo htmlspecialchars($data['notification_date'] . ' ' . $data['notification_time']); ?>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Deskripsi</span>
+                            <?php echo htmlspecialchars($data['description']); ?>
+
+                            
+                        </div>
                     </div>
                 </div>
             <?php endforeach; ?>
@@ -541,7 +575,7 @@ header h1 {
 
     <!-- Modal Edit -->
     <div id="editModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-scroll">
             <h2>Edit Data Kesehatan</h2>
             <form id="editForm" method="POST">
                 <input type="hidden" name="edit_id" id="edit_id">
@@ -583,6 +617,21 @@ header h1 {
                     <label for="edit_diagnosis">Diagnosis:</label>
                     <input type="text" id="edit_diagnosis" name="diagnosis" required>
                 </div>
+                
+                <div class="form-group">
+                    <label for="edit_notification_date">Tanggal Notifikasi:</label>
+                    <input type="date" id="edit_notification_date" name="notification_date">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_notification_time">Waktu Notifikasi:</label>
+                    <input type="time" id="edit_notification_time" name="notification_time">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_description">Deskripsi:</label>
+                    <textarea id="edit_description" name="description"></textarea>
+                </div>
 
                 <div class="button-container">
                     <button type="submit" class="edit-button">
@@ -618,6 +667,9 @@ header h1 {
             document.getElementById('edit_status').value = data.status;
             document.getElementById('edit_keluhan').value = data.keluhan;
             document.getElementById('edit_diagnosis').value = data.diagnosis;
+            document.getElementById('edit_notification_date').value = data.notification_date;
+            document.getElementById('edit_notification_time').value = data.notification_time;
+            document.getElementById('edit_description').value = data.description;
         }
 
         function closeEditModal() {

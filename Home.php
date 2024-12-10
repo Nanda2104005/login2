@@ -753,17 +753,6 @@ body {
                     <i class="fas fa-tachometer-alt"></i>
                     Dashboard
                 </a>
-
-                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-                <a href="monitoringkesehatan.php" class="nav-link">
-                    <i class="fas fa-heartbeat"></i>
-                    Monitoring Kesehatan
-                </a>
-                <a href="rekamkesehatan.php" class="nav-link">
-                    <i class="fas fa-notes-medical"></i>
-                    Rekam Kesehatan
-                </a>
-                <?php endif; ?>
             <a href="about.php" class="nav-link">
                 <i class="fas fa-info-circle"></i>
                 Tentang Kami
@@ -818,7 +807,7 @@ body {
 
             <div class="feature-card">
                 <i class="fas fa-chart-line feature-icon"></i>
-                <h3>Analisis & Laporan</h3>
+                <h3> Laporan Digital</h3>
                 <p>Dapatkan insight kesehatan melalui analisis data dan laporan komprehensif.</p>
             </div>
         </div>
@@ -836,7 +825,7 @@ body {
                 <p>Siswa Terpantau</p>
             </div>
             <div class="stat-item">
-                <h3>10/5</h3>
+                <h3>24/7</h3>
                 <p>Monitoring Aktif</p>
             </div>
             <div class="stat-item">
@@ -844,7 +833,7 @@ body {
                 <p>Data Transparan</p>
             </div>
             <div class="stat-item">
-                <h3>-</h3>
+                <h3>30</h3>
                 <p>Tahun Pengalaman</p>           
     </section>
 

@@ -210,7 +210,7 @@
     <div>
         <a href="Home.php"><i class="fas fa-home icon"></i>Home</a>
         <a href="dashboard.php"><i class="fas fa-tachometer-alt icon"></i>Dashboard</a>
-        <a href="about.php"><i class="fas fa-info-circle icon"></i>About Us</a>
+        <a href="about.php"><i class="fas fa-info-circle icon"></i>Tentang Kami</a>
     </div>
     <a href="logout.php" class="btn">
     <i class="fas fa-sign-out-alt"></i>

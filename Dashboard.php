@@ -360,7 +360,7 @@ $role = $_SESSION['role'];
         <a href="Home.php"><i class="fas fa-home icon"></i>Home</a>
         <a href="dashboard.php"><i class="fas fa-tachometer-alt icon"></i>Dashboard</a>
         <?php if ($role === 'admin'): ?>
-            <a href="about.php"><i class="fas fa-info-circle icon"></i>About Us</a>
+            <a href="about.php"><i class="fas fa-info-circle icon"></i>Tentang Kami</a>
         <?php endif; ?>
     </div>
     <div class="nav-buttons">

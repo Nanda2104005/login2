@@ -27,10 +27,25 @@ if (!$conn) {
     die("Koneksi gagal: " . mysqli_connect_error());
 }
 
-// Function untuk mendapatkan user_id
-function getUserId($conn, $username) {
-    $stmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
-    $stmt->bind_param("s", $username);
+// Fungsi untuk mengecek apakah obat expired
+function isObatExpired($conn, $nama_obat) {
+    $stmt = mysqli_prepare($conn, "SELECT tanggal_kadaluarsa FROM stok_obat WHERE nama = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmt, "s", $nama_obat);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    
+    if ($row = mysqli_fetch_assoc($result)) {
+        $expiry_date = new DateTime($row['tanggal_kadaluarsa']);
+        $today = new DateTime();
+        return $expiry_date < $today;
+    }
+    return false;
+}
+
+// Fungsi untuk mendapatkan user_id berdasarkan NIS
+function getUserIdByNIS($conn, $nis) {
+    $stmt = $conn->prepare("SELECT id FROM users WHERE nis = ?");
+    $stmt->bind_param("s", $nis);
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
@@ -80,9 +95,82 @@ if (isset($_GET['action']) && $_GET['action'] === 'getStudent') {
     }
 }
 
+// Mendapatkan daftar obat expired
+$obat_expired = [];
+try {
+    $today = date('Y-m-d');
+    $stmt = mysqli_prepare($conn, "SELECT nama FROM stok_obat WHERE tanggal_kadaluarsa < ?");
+    mysqli_stmt_bind_param($stmt, "s", $today);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    while($row = mysqli_fetch_assoc($result)) {
+        $obat_expired[] = $row['nama'];
+    }
+} catch (Exception $e) {
+    // Handle error silently
+}
+
 $pesanSukses = "";
 $pesanError = "";
 
+// Logika Pencarian
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$searchResults = array();
+
+// Query untuk mendapatkan data monitoring dengan pencarian
+try {
+    if (!empty($search)) {
+        $query = "SELECT m.*, p.nama_obat, p.jumlah as jumlah_obat 
+                 FROM monitoringkesehatan m 
+                 LEFT JOIN pengingatobat p ON m.pengingat_id = p.id
+                 WHERE m.nama LIKE ? OR 
+                       m.nis LIKE ? OR 
+                       m.kelas LIKE ? OR 
+                       m.status LIKE ? OR
+                       m.diagnosis LIKE ? OR
+                       m.keluhan LIKE ?
+                 ORDER BY m.tanggal DESC";
+                 
+        $search_term = "%{$search}%";
+        $stmt = mysqli_prepare($conn, $query);
+        mysqli_stmt_bind_param($stmt, "ssssss", 
+            $search_term, $search_term, $search_term, $search_term, $search_term, $search_term
+        );
+
+        $_SESSION['is_searching'] = true;
+        $_SESSION['search_term'] = $search;
+    } else {
+        $query = "SELECT m.*, p.nama_obat, p.jumlah as jumlah_obat 
+                 FROM monitoringkesehatan m 
+                 LEFT JOIN pengingatobat p ON m.pengingat_id = p.id
+                 ORDER BY m.tanggal DESC";
+        $stmt = mysqli_prepare($conn, $query);
+        
+        unset($_SESSION['is_searching']);
+        unset($_SESSION['search_term']);
+    }
+    
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    
+    if (!$result) {
+        throw new Exception(mysqli_error($conn));
+    }
+    
+    $daftarRekamKesehatan = array();
+    while($row = mysqli_fetch_assoc($result)) {
+        $daftarRekamKesehatan[] = $row;
+        if (!empty($search)) {
+            $searchResults[] = $row['id'];
+        }
+    }
+    mysqli_stmt_close($stmt);
+    
+} catch (Exception $e) {
+    $pesanError = "Error mengambil data: " . $e->getMessage();
+}
+
+// Handle POST request
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $nama = isset($_POST['nama']) ? htmlspecialchars(trim($_POST['nama'])) : '';
     $nis = isset($_POST['nis']) ? htmlspecialchars(trim($_POST['nis'])) : '';
@@ -96,9 +184,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $jumlah_obat = isset($_POST['jumlah_obat']) ? intval($_POST['jumlah_obat']) : 0;
 
     try {
-        $user_id = getUserId($conn, $_SESSION['username']);
-        if (!$user_id) {
-            throw new Exception("User ID tidak ditemukan.");
+        $student_user_id = getUserIdByNIS($conn, $nis);
+        if (!$student_user_id) {
+            throw new Exception("Siswa dengan NIS tersebut tidak ditemukan.");
         }
 
         if (empty($nama) || empty($nis) || empty($kelas) || empty($suhu) || empty($status)) {
@@ -107,17 +195,48 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         mysqli_begin_transaction($conn);
 
-        // Insert ke pengingatobat terlebih dahulu
+        // Jika status sakit dan ada pemberian obat
+        if ($status === 'Sakit' && !empty($nama_obat) && $jumlah_obat > 0) {
+            // Cek apakah obat expired
+            if (isObatExpired($conn, $nama_obat)) {
+                throw new Exception("Obat '$nama_obat' sudah expired! Silakan pilih obat lain.");
+            }
+
+            // Cek stok obat
+            $stmt = mysqli_prepare($conn, "SELECT jumlah FROM stok_obat WHERE nama = ? FOR UPDATE");
+            mysqli_stmt_bind_param($stmt, "s", $nama_obat);
+            mysqli_stmt_execute($stmt);
+            $result = mysqli_stmt_get_result($stmt);
+            
+            if ($result && $row = mysqli_fetch_assoc($result)) {
+                $stok_current = $row['jumlah'];
+                
+                if ($stok_current < $jumlah_obat) {
+                    throw new Exception("Stok obat tidak mencukupi! Stok tersedia: " . $stok_current);
+                }
+
+                // Update stok obat
+                $stmt = mysqli_prepare($conn, "UPDATE stok_obat SET jumlah = jumlah - ? WHERE nama = ?");
+                mysqli_stmt_bind_param($stmt, "is", $jumlah_obat, $nama_obat);
+                if (!mysqli_stmt_execute($stmt)) {
+                    throw new Exception("Gagal memperbarui stok obat");
+                }
+            } else {
+                throw new Exception("Obat '$nama_obat' tidak ditemukan dalam stok!");
+            }
+        }
+
+        // Insert ke pengingatobat
         $stmt = mysqli_prepare($conn, "INSERT INTO pengingatobat 
-            (patient_id, condition_name, severity, user_id) 
-            VALUES (?, ?, ?, ?)");
+            (patient_id, condition_name, severity, user_id, nama_obat, jumlah) 
+            VALUES (?, ?, ?, ?, ?, ?)");
         
         $patient_id = $nis;
         $condition_name = $status == 'Sakit' ? $diagnosis : 'Sehat';
         $severity = $status == 'Sakit' ? 'Medium' : 'Low';
         
-        mysqli_stmt_bind_param($stmt, "sssi", 
-            $patient_id, $condition_name, $severity, $user_id
+        mysqli_stmt_bind_param($stmt, "sssisi", 
+            $patient_id, $condition_name, $severity, $student_user_id, $nama_obat, $jumlah_obat
         );
         
         if (!mysqli_stmt_execute($stmt)) {
@@ -127,47 +246,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $pengingat_id = mysqli_insert_id($conn);
         mysqli_stmt_close($stmt);
 
-        // Jika status sakit dan ada pemberian obat
-        if ($status === 'Sakit' && !empty($nama_obat) && $jumlah_obat > 0) {
-            // Cek stok obat terlebih dahulu
-            $stmt = mysqli_prepare($conn, "SELECT jumlah FROM stok_obat WHERE nama = ? FOR UPDATE");
-            mysqli_stmt_bind_param($stmt, "s", $nama_obat);
-            mysqli_stmt_execute($stmt);
-            $result = mysqli_stmt_get_result($stmt);
-            
-            if ($result && $row = mysqli_fetch_assoc($result)) {
-                $stok_current = $row['jumlah'];
-                
-                // Validasi stok tersedia
-                if ($stok_current < $jumlah_obat) {
-                    throw new Exception("Stok obat tidak mencukupi! Stok tersedia: " . $stok_current);
-                }
-
-                // Update stok obat (hanya sekali)
-                $stmt = mysqli_prepare($conn, "UPDATE stok_obat SET jumlah = jumlah - ? WHERE nama = ?");
-                mysqli_stmt_bind_param($stmt, "is", $jumlah_obat, $nama_obat);
-                if (!mysqli_stmt_execute($stmt)) {
-                    throw new Exception("Gagal memperbarui stok obat");
-                }
-                
-                // Update info penggunaan obat di pengingatobat
-                $stmt = mysqli_prepare($conn, "UPDATE pengingatobat SET nama_obat = ?, jumlah = ? WHERE id = ?");
-                mysqli_stmt_bind_param($stmt, "sii", $nama_obat, $jumlah_obat, $pengingat_id);
-                if (!mysqli_stmt_execute($stmt)) {
-                    throw new Exception("Gagal memperbarui data pengingat obat");
-                }
-            } else {
-                throw new Exception("Obat '$nama_obat' tidak ditemukan dalam stok!");
-            }
-        }
-
         // Insert ke monitoringkesehatan
         $stmt = mysqli_prepare($conn, "INSERT INTO monitoringkesehatan 
-            (nama, nis, keluhan, diagnosis, kelas, suhu, status, pertolongan_pertama, pengingat_id, user_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            (nama, nis, keluhan, diagnosis, kelas, suhu, status, pertolongan_pertama, pengingat_id, user_id, tanggal) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
         mysqli_stmt_bind_param($stmt, "sssssdssii", 
-            $nama, $nis, $keluhan, $diagnosis, $kelas, $suhu, $status, $pertolongan, $pengingat_id, $user_id
+            $nama, $nis, $keluhan, $diagnosis, $kelas, $suhu, $status, $pertolongan, $pengingat_id, $student_user_id
         );
         
         if (!mysqli_stmt_execute($stmt)) {
@@ -183,7 +268,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             VALUES (?, ?, ?, ?, ?, ?)");
         
         mysqli_stmt_bind_param($stmt, "sssssi", 
-            $nama, $nis, $keluhan, $diagnosis, $pertolongan, $user_id
+            $nama, $nis, $keluhan, $diagnosis, $pertolongan, $student_user_id
         );
         
         if (!mysqli_stmt_execute($stmt)) {
@@ -192,6 +277,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         mysqli_stmt_close($stmt);
 
         mysqli_commit($conn);
+        
+        // Set session untuk scroll position
+        $_SESSION['maintain_scroll'] = true;
+        $_SESSION['scroll_position'] = $_POST['scrollPosition'] ?? 0;
+        
         $pesanSukses = "Data berhasil ditambahkan!";
 
     } catch (Exception $e) {
@@ -200,41 +290,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// Bagian menampilkan data
-$daftarRekamKesehatan = [];
-try {
-    $query = "SELECT m.*, u.nama_lengkap, p.nama_obat, p.jumlah as jumlah_obat
-              FROM monitoringkesehatan m 
-              LEFT JOIN users u ON m.user_id = u.id 
-              LEFT JOIN pengingatobat p ON m.pengingat_id = p.id
-              ORDER BY m.id DESC";
-    $result = mysqli_query($conn, $query);
-    
-    if (!$result) {
-        throw new Exception(mysqli_error($conn));
-    }
-    
-    while($row = mysqli_fetch_assoc($result)) {
-        $daftarRekamKesehatan[] = $row;
-    }
-    mysqli_free_result($result);
-    
-} catch (Exception $e) {
-    $pesanError = "Error mengambil data: " . $e->getMessage();
-}
-
 // Query untuk mendapatkan daftar obat
 $obat_list = [];
 try {
-    $stmt = mysqli_prepare($conn, "SELECT nama FROM stok_obat WHERE jumlah > 0");
+    $stmt = mysqli_prepare($conn, "SELECT nama, tanggal_kadaluarsa FROM stok_obat WHERE jumlah > 0");
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     while($row = mysqli_fetch_assoc($result)) {
-        $obat_list[] = $row['nama'];
+        $obat_list[] = $row;
     }
 } catch (Exception $e) {
     $pesanError = "Error mengambil data obat: " . $e->getMessage();
 }
+
+mysqli_close($conn);
 ?>
 
 <!DOCTYPE html>
@@ -247,9 +316,7 @@ try {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" rel="stylesheet">
 
     <style>
-       /* Reset and Variables */
-/* Modern Health Monitoring System Theme */
-:root {
+        :root {
     --primary-color: #1ca883;
     --primary-dark: #159f7f;
     --primary-light: #e8f5f1;
@@ -308,6 +375,88 @@ header h1 {
     gap: 0.8rem;
 }
 
+/* Search Container */
+.search-container {
+    grid-column: span 12;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: var(--box-shadow);
+    margin-bottom: 2rem;
+}
+
+.search-form {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.search-input-container {
+    position: relative;
+    flex: 1;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    padding-right: 2.5rem;
+    border: 2px solid var(--primary-light);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.search-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(28, 168, 131, 0.1);
+    outline: none;
+}
+
+.clear-search {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.3s ease;
+}
+
+.search-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.search-button,
+.clear-button {
+    padding: 0.8rem 1.5rem;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.search-button {
+    background: linear-gradient(45deg, var(--primary-color), var(--primary-dark));
+}
+
+.clear-button {
+    background: var(--text-light);
+    text-decoration: none;
+}
+
 /* Form Container */
 .form-container {
     grid-column: span 4;
@@ -320,73 +469,25 @@ header h1 {
     height: fit-content;
 }
 
-/* Table Container */
-/* Table Styles */
-table {
-    grid-column: span 8;
-    background: var(--white);
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: var(--box-shadow);
-    width: 100%;
-    border-collapse: collapse;
-    border: 3px solid #1ca883; /* Border utama lebih tebal */
+.form-group {
+    margin-bottom: 1rem;
 }
 
-th {
-    background: var(--primary-color);
-    color: var(--white);
-    padding: 1rem;
-    text-align: left;
-    font-size: 0.85rem;
-    font-weight: 600;
-    border: 2px solid #159f7f; /* Border header lebih tegas */
-}
-
-td {
-    padding: 1rem;
-    border: 2px solid #ccc; /* Border sel lebih tegas dan warna lebih gelap */
-    font-size: 0.9rem;
-    vertical-align: middle;
-}
-
-tr {
-    border: 2px solid #ccc; /* Border baris lebih tegas */
-}
-
-tr:last-child td {
-    border-bottom: 2px solid #ccc; /* Border baris terakhir */
-}
-
-/* Tambahan untuk mempertegas garis vertikal */
-th:not(:last-child),
-td:not(:last-child) {
-    border-right: 2px solid #ccc;
-}
-
-th:nth-last-child(1),
-td:nth-last-child(1) {
-    text-align: center; /* Agar angka berada di tengah */
-    min-width: 100px; /* Lebar minimum kolom */
-}
-
-/* Mempertegas header */
-thead tr {
-    border-bottom: 3px solid #159f7f;
-}
-
-/* Hover state */
-tbody tr:hover {
-    background-color: #f5f5f5;
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+    font-weight: 500;
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
     width: 100%;
-    padding: 0.6rem;
+    padding: 0.8rem;
     border: 2px solid var(--primary-light);
     border-radius: 8px;
+    font-size: 0.95rem;
     transition: all 0.3s ease;
 }
 
@@ -399,41 +500,105 @@ tbody tr:hover {
 }
 
 /* Table Styles */
+.table-container {
+    grid-column: span 8;
+    background: white;
+    border-radius: 12px;
+    box-shadow: var(--box-shadow);
+    max-height: 70vh; /* Tinggi maksimum menggunakan viewport height */
+    overflow: auto;
+    position: relative;
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 3px solid var(--primary-color);
+    min-width: 1200px; /* Minimal lebar tabel */
+}
+
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
 th {
     background: var(--primary-color);
     color: var(--white);
-    padding: 0.8rem;
+    padding: 1rem;
     text-align: left;
     font-size: 0.85rem;
     font-weight: 600;
+    white-space: nowrap;
+    border-bottom: 2px solid var(--primary-dark);
 }
 
 td {
-    padding: 0.8rem;
-    border-bottom: 1px solid var(--primary-light);
+    padding: 1rem;
+    border-bottom: 2px solid #e0e0e0;
     font-size: 0.9rem;
+    vertical-align: middle;
+    background: var(--white);
 }
 
-tr:hover {
+tr:nth-child(even) td {
     background-color: var(--primary-light);
+}
+
+/* Highlight untuk hasil pencarian */
+tr.highlight td {
+    background-color: rgba(28, 168, 131, 0.2) !important;
+}
+
+/* Hover tetap mempertahankan highlight */
+tr.highlight:hover td {
+    background-color: rgba(28, 168, 131, 0.3) !important;
+}
+
+/* Hover untuk baris normal */
+tr:not(.highlight):hover td {
+    background-color: rgba(28, 168, 131, 0.1);
+}
+
+/* Alert Styles */
+.alert {
+    grid-column: span 12;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    animation: slideIn 0.3s ease;
+}
+
+.alert-success {
+    background-color: var(--success);
+    color: white;
+}
+
+.alert-danger {
+    background-color: var(--error);
+    color: white;
 }
 
 /* Button Styles */
 .btn-submit {
-    background: linear-gradient(45deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-    color: var(--white);
-    padding: 0.8rem 1.5rem;
+    width: 100%;
+    padding: 0.8rem;
+    background: linear-gradient(45deg, var(--primary-color), var(--primary-dark));
+    color: white;
     border: none;
     border-radius: 8px;
     font-weight: 500;
     cursor: pointer;
-    width: 100%;
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    margin-top: 1rem;
 }
 
 .btn-submit:hover {
@@ -441,90 +606,56 @@ tr:hover {
     box-shadow: 0 4px 12px rgba(28, 168, 131, 0.2);
 }
 
-/* Alert Styles */
-.alert {
-    grid-column: span 12;
-    padding: 0.8rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
+.btn-back {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.8rem 1.2rem;
+    border-radius: 25px;
+    text-decoration: none;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    animation: slideIn 0.5s ease-out;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    z-index: 1000;
 }
 
-.alert-success {
-    background-color: var(--success);
-    color: var(--white);
+.btn-back:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
 }
 
-.alert-danger {
-    background-color: var(--error);
-    color: var(--white);
-}
-
-/* Health Status Indicators */
-.status-healthy,
-.status-sick {
-    padding: 0.3rem 0.6rem;
-    border-radius: 20px;
+/* Status Badge Styles */
+.status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
     font-size: 0.8rem;
     font-weight: 500;
 }
 
-.status-healthy {
-    background-color: var(--success);
-    color: var(--white);
-}
-
-.status-sick {
+.status-badge.sakit {
     background-color: var(--error);
-    color: var(--white);
+    color: white;
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
-    .form-container {
-        grid-column: span 5;
-    }
-    
-    table {
-        grid-column: span 7;
-    }
-}
-
-@media (max-width: 992px) {
-    .form-container,
-    table {
-        grid-column: span 12;
-    }
-    
-    .form-container {
-        position: static;
-    }
-    
-    table {
-        overflow-x: auto;
-        display: block;
-    }
+.status-badge.sehat {
+    background-color: var(--success);
+    color: white;
 }
 
 /* Animations */
 @keyframes slideIn {
     from {
-        transform: translateY(-20px);
+        transform: translateY(-10px);
         opacity: 0;
     }
     to {
         transform: translateY(0);
         opacity: 1;
     }
-}
-
-/* Medical Icons Enhancement */
-.medical-icon {
-    font-size: 1.2rem;
-    color: var(--primary-color);
 }
 
 /* Custom Scrollbar */
@@ -547,26 +678,61 @@ tr:hover {
     background: var(--primary-dark);
 }
 
-.btn-back {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    background: var(--primary-color);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    z-index: 1000;
-    transition: all 0.3s ease;
-    font-size: 0.9rem;
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .form-container {
+        grid-column: span 5;
+    }
+    
+    .table-container {
+        grid-column: span 7;
+    }
 }
 
-.btn-back:hover {
-    background: var(--primary-dark);
-    transform: translateY(-2px);
+@media (max-width: 992px) {
+    .search-form {
+        flex-direction: column;
+    }
+
+    .search-buttons {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .search-button,
+    .clear-button {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .form-container,
+    .table-container {
+        grid-column: span 12;
+    }
+    
+    .form-container {
+        position: static;
+    }
+
+    .btn-back {
+        position: static;
+        margin-bottom: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    .table-container {
+        max-height: 60vh;
+    }
+    
+    td, th {
+        padding: 0.75rem;
+        font-size: 0.8rem;
+    }
 }
     </style>
 </head>
@@ -582,11 +748,41 @@ tr:hover {
         </header>
 
         <?php if ($pesanSukses): ?>
-            <div class="alert alert-success"><?php echo htmlspecialchars($pesanSukses); ?></div>
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i>
+                <?php echo htmlspecialchars($pesanSukses); ?>
+            </div>
         <?php endif; ?>
+
         <?php if ($pesanError): ?>
-            <div class="alert alert-danger"><?php echo htmlspecialchars($pesanError); ?></div>
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i>
+                <?php echo htmlspecialchars($pesanError); ?>
+            </div>
         <?php endif; ?>
+
+        <div class="search-container">
+    <form method="GET" action="" class="search-form">
+        <div class="search-input-container">
+            <input type="text" name="search" class="search-input" 
+                   placeholder="Cari berdasarkan nama, NIS, kelas, atau diagnosis..."
+                   value="<?php echo htmlspecialchars($search); ?>">
+            <?php if (!empty($search)): ?>
+            <button type="button" class="clear-search" onclick="clearSearch()">
+                <i class="fas fa-times"></i>
+            </button>
+            <?php endif; ?>
+        </div>
+        <div class="search-buttons">
+            <button type="submit" class="search-button">
+                <i class="fas fa-search"></i> Cari
+            </button>
+            <a href="?" class="clear-button">
+                <i class="fas fa-sync-alt"></i> Clear
+            </a>
+        </div>
+    </form>
+</div>
 
         <div class="form-container">
             <h2>Tambah Data Siswa</h2>
@@ -616,25 +812,29 @@ tr:hover {
                 </div>
                 <div class="form-group">
                     <label for="keluhan">Keluhan:</label>
-                    <input type="text" name="keluhan" id="keluhan" required>
+                    <textarea name="keluhan" id="keluhan" required></textarea>
                 </div>
                 <div class="form-group">
                     <label for="diagnosis">Diagnosis:</label>
-                    <input type="text" name="diagnosis" id="diagnosis" required>
+                    <textarea name="diagnosis" id="diagnosis" required></textarea>
                 </div>
                 <div class="form-group">
                     <label for="pertolongan">Tindakan:</label>
-                    <textarea name="pertolongan" id="pertolongan" rows="3" class="form-control"></textarea>
+                    <textarea name="pertolongan" id="pertolongan" rows="3"></textarea>
                 </div>
 
-                <!-- Field obat yang hanya muncul jika status Sakit -->
                 <div class="form-group obat-fields" style="display: none;">
                     <label for="nama_obat">Nama Obat:</label>
-                    <select name="nama_obat" id="nama_obat" class="form-control">
+                    <select name="nama_obat" id="nama_obat">
                         <option value="">Pilih Obat</option>
-                        <?php foreach($obat_list as $obat): ?>
-                            <option value="<?php echo htmlspecialchars($obat); ?>">
-                                <?php echo htmlspecialchars($obat); ?>
+                        <?php foreach($obat_list as $obat): 
+                            $is_expired = (new DateTime($obat['tanggal_kadaluarsa'])) < (new DateTime());
+                        ?>
+                            <option value="<?php echo htmlspecialchars($obat['nama']); ?>"
+                                    <?php echo $is_expired ? 'disabled' : ''; ?>
+                                    class="<?php echo $is_expired ? 'expired-option' : ''; ?>">
+                                <?php echo htmlspecialchars($obat['nama']) . 
+                                      ($is_expired ? ' (Expired)' : ''); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -642,188 +842,383 @@ tr:hover {
 
                 <div class="form-group obat-fields" style="display: none;">
                     <label for="jumlah_obat">Jumlah Obat:</label>
-                    <input type="number" name="jumlah_obat" id="jumlah_obat" min="1" class="form-control">
+                    <input type="number" name="jumlah_obat" id="jumlah_obat" min="1">
                 </div>
 
-                <button type="submit" class="btn-submit">Tambah Siswa</button>
+                <button type="submit" class="btn-submit">
+                    <i class="fas fa-plus-circle"></i>
+                    Tambah Data
+                </button>
             </form>
         </div>
 
-        <table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Nama</th>
-            <th>NIS</th>
-            <th>Kelas</th>
-            <th>Suhu (°C)</th>
-            <th>Status</th>
-            <th>Keluhan</th>
-            <th>Diagnosis</th>
-            <th>Tindakan</th>
-            <th>Obat</th>
-            <th>Jumlah Obat</th> <!-- Kolom baru -->
-        </tr>
-    </thead>
-    <tbody id="siswaTableBody">
-        <?php foreach ($daftarRekamKesehatan as $rekam): ?>
-        <tr>
-            <td><?php echo htmlspecialchars($rekam['id']); ?></td>
-            <td><?php echo htmlspecialchars($rekam['nama']); ?></td>
-            <td><?php echo htmlspecialchars($rekam['nis']); ?></td>
-            <td><?php echo htmlspecialchars($rekam['kelas']); ?></td>
-            <td><?php echo htmlspecialchars($rekam['suhu']); ?>°C</td>
-            <td><?php echo htmlspecialchars($rekam['status']); ?></td>
-            <td><?php echo htmlspecialchars($rekam['keluhan']); ?></td>
-            <td><?php echo htmlspecialchars($rekam['diagnosis']); ?></td>
-            <td><?php echo htmlspecialchars($rekam['pertolongan_pertama']); ?></td>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nama</th>
+                        <th>NIS</th>
+                        <th>Kelas</th>
+                        <th>Suhu (°C)</th>
+                        <th>Status</th>
+                        <th>Keluhan</th>
+                        <th>Diagnosis</th>
+                        <th>Tindakan</th>
+                        <th>Obat</th>
+                        <th>Jumlah Obat</th>
+                    </tr>
+                </thead>
+                <tbody id="siswaTableBody">
+                    <?php foreach ($daftarRekamKesehatan as $rekam): ?>
+                    <tr class="<?php echo (!empty($search) && in_array($rekam['id'], $searchResults)) ? 'highlight' : ''; ?>">
+                        <td><?php echo htmlspecialchars($rekam['id']); ?></td>
+                        <td><?php echo htmlspecialchars($rekam['nama']); ?></td>
+                        <td><?php echo htmlspecialchars($rekam['nis']); ?></td>
+                        <td><?php echo htmlspecialchars($rekam['kelas']); ?></td>
+                        <td><?php echo htmlspecialchars($rekam['suhu']); ?>°C</td>
+                        <td>
+                            <span class="status-badge <?php echo strtolower($rekam['status']); ?>">
+                                <?php echo htmlspecialchars($rekam['status']); ?>
+                            </span>
+                        </td>
+                        <td><?php echo htmlspecialchars($rekam['keluhan']); ?></td>
+                        <td><?php echo htmlspecialchars($rekam['diagnosis']); ?></td>
+                        <td><?php echo htmlspecialchars($rekam['pertolongan_pertama']); ?></td>
+                        <td>
+                            <?php 
+                            if ($rekam['status'] === 'Sakit') {
+                                echo htmlspecialchars($rekam['nama_obat'] ?: '-');
+                            } else {
+                                echo '-';
+                            }
+                            ?>
+                        </td>
+                        <td>
+                            <?php 
+                            if ($rekam['status'] === 'Sakit' && $rekam['nama_obat']) {
+                                echo htmlspecialchars($rekam['jumlah_obat'] ?: '0') . ' pcs';
+                            } else {
+                                echo '-';
+                            }
+                            ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script id="obatExpiredData" type="application/json">
+    <?php echo json_encode($obat_expired); ?>
+</script>
+
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inisialisasi elemen-elemen form
+    const nisInput = document.getElementById('nis');
+    const namaInput = document.getElementById('nama');
+    const statusSelect = document.getElementById('status');
+    const obatFields = document.querySelectorAll('.obat-fields');
+    const namaObatSelect = document.getElementById('nama_obat');
+    const monitoringForm = document.getElementById('monitoringForm');
+    const siswaTableBody = document.getElementById('siswaTableBody');
+    let isUpdating = false;
+    let initialScrollPosition = 0;
+
+    // Data obat expired dari PHP
+    const obatExpired = JSON.parse(document.getElementById('obatExpiredData').textContent);
+
+    // Fungsi untuk toggle fields obat
+    function toggleObatFields(status) {
+        obatFields.forEach(field => {
+            field.style.display = status === 'Sakit' ? 'block' : 'none';
+        });
+        
+        if (status !== 'Sakit') {
+            namaObatSelect.value = '';
+            document.getElementById('jumlah_obat').value = '';
+        }
+    }
+
+    // Event listener untuk status change
+    statusSelect.addEventListener('change', function() {
+        toggleObatFields(this.value);
+    });
+
+    // Fungsi untuk escape HTML
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return unsafe
+            .toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Fungsi untuk menambah baris baru ke tabel
+    function addNewRowToTable(data) {
+        const newRow = document.createElement('tr');
+        
+        // Cari ID terbesar
+        const rows = siswaTableBody.getElementsByTagName('tr');
+        let maxId = 0;
+        for (let row of rows) {
+            const id = parseInt(row.cells[0].textContent);
+            if (id > maxId) maxId = id;
+        }
+
+        // Template baris baru
+        newRow.innerHTML = `
+            <td>${maxId + 1}</td>
+            <td>${escapeHtml(data.get('nama'))}</td>
+            <td>${escapeHtml(data.get('nis'))}</td>
+            <td>${escapeHtml(data.get('kelas'))}</td>
+            <td>${escapeHtml(data.get('suhu'))}°C</td>
             <td>
-                <?php 
-                if ($rekam['status'] === 'Sakit') {
-                    echo htmlspecialchars($rekam['nama_obat'] ?: '-');
-                } else {
-                    echo '-';
-                }
-                ?>
+                <span class="status-badge ${data.get('status').toLowerCase()}">
+                    ${escapeHtml(data.get('status'))}
+                </span>
             </td>
-            <td>
-                <?php 
-                if ($rekam['status'] === 'Sakit' && $rekam['nama_obat']) {
-                    echo htmlspecialchars($rekam['jumlah_obat'] ?: '0') . ' pcs';
-                } else {
-                    echo '-';
+            <td>${escapeHtml(data.get('keluhan'))}</td>
+            <td>${escapeHtml(data.get('diagnosis'))}</td>
+            <td>${escapeHtml(data.get('pertolongan'))}</td>
+            <td>${data.get('status') === 'Sakit' ? escapeHtml(data.get('nama_obat') || '-') : '-'}</td>
+            <td>${data.get('status') === 'Sakit' && data.get('nama_obat') ? 
+                escapeHtml(data.get('jumlah_obat')) + ' pcs' : '-'}</td>
+        `;
+        
+        // Insert baris baru di awal tabel
+        if (siswaTableBody.firstChild) {
+            siswaTableBody.insertBefore(newRow, siswaTableBody.firstChild);
+        } else {
+            siswaTableBody.appendChild(newRow);
+        }
+    }
+
+    // Fungsi untuk menampilkan alert
+    function showAlert(message, type = 'success') {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.innerHTML = `<i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i> ${message}`;
+        
+        const container = document.querySelector('.container');
+        const existingAlert = container.querySelector('.alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        setTimeout(() => {
+            alertDiv.style.transition = 'opacity 0.5s ease-out';
+            alertDiv.style.opacity = '0';
+            setTimeout(() => alertDiv.remove(), 500);
+        }, 5000);
+    }
+
+    // Fungsi untuk validasi form
+    function validateForm(formData) {
+        const suhu = parseFloat(formData.get('suhu'));
+        if (suhu < 35 || suhu > 42) {
+            throw new Error('Suhu harus berada dalam rentang 35°C - 42°C');
+        }
+
+        const nis = formData.get('nis');
+        if (!/^\d+$/.test(nis)) {
+            throw new Error('NIS harus berupa angka');
+        }
+
+        const kelas = formData.get('kelas');
+        if (kelas.length < 2) {
+            throw new Error('Kelas harus diisi dengan benar (minimal 2 karakter)');
+        }
+
+        if (formData.get('status') === 'Sakit') {
+            const selectedObat = formData.get('nama_obat');
+            const jumlahObat = formData.get('jumlah_obat');
+            
+            if (!selectedObat) {
+                throw new Error('Pilih obat yang akan diberikan');
+            }
+
+            if (obatExpired.includes(selectedObat)) {
+                throw new Error(`Obat "${selectedObat}" sudah expired! Silakan pilih obat lain.`);
+            }
+
+            if (!jumlahObat || jumlahObat < 1) {
+                throw new Error('Masukkan jumlah obat yang valid');
+            }
+        }
+    }
+
+    // Handler form submission dengan perbaikan scroll
+    monitoringForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Simpan posisi scroll awal
+        initialScrollPosition = window.scrollY;
+        
+        const formData = new FormData(this);
+        
+        try {
+            validateForm(formData);
+
+            const response = await fetch('', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) throw new Error('Network response was not ok');
+            
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const jsonResponse = await response.json();
+                if (jsonResponse.error) {
+                    throw new Error(jsonResponse.error);
                 }
-                ?>
-            </td>
-        </tr>
-        <?php endforeach; ?>
-    </tbody>
-</table>
-   </div>
+            }
+            
+            addNewRowToTable(formData);
+            this.reset();
+            toggleObatFields('Sehat');
+            
+            // Scroll ke posisi awal dengan smooth behavior
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+            
+            showAlert('Data berhasil ditambahkan!', 'success');
+            
+        } catch (error) {
+            showAlert(error.message, 'danger');
+            // Kembalikan ke posisi scroll sebelumnya jika terjadi error
+            window.scrollTo({
+                top: initialScrollPosition,
+                behavior: 'smooth'
+            });
+        }
+    });
 
-   <script>
-       document.addEventListener('DOMContentLoaded', function() {
-           const nisInput = document.getElementById('nis');
-           const namaInput = document.getElementById('nama');
-           const statusSelect = document.getElementById('status');
-           const obatFields = document.querySelectorAll('.obat-fields');
-           let isUpdating = false;
+    // Fungsi pencarian siswa
+    async function searchStudent(searchTerm, searchType) {
+        if (isUpdating || !searchTerm) return;
+        
+        try {
+            isUpdating = true;
+            const response = await fetch(`?action=getStudent&${searchType}=${encodeURIComponent(searchTerm)}`);
+            if (!response.ok) throw new Error('Network response was not ok');
+            
+            const data = await response.json();
+            
+            if (data && (data.nama || data.nis)) {
+                if (searchType === 'nis') {
+                    namaInput.value = data.nama || '';
+                } else if (searchType === 'nama') {
+                    nisInput.value = data.nis || '';
+                }
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+        } finally {
+            isUpdating = false;
+        }
+    }
 
-           // Fungsi untuk menampilkan/menyembunyikan field obat
-           function toggleObatFields(status) {
-               obatFields.forEach(field => {
-                   field.style.display = status === 'Sakit' ? 'block' : 'none';
-               });
-               
-               // Reset nilai field obat jika status bukan Sakit
-               if (status !== 'Sakit') {
-                   document.getElementById('nama_obat').value = '';
-                   document.getElementById('jumlah_obat').value = '';
-               }
-           }
+    // Fungsi debounce
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
 
-           // Event listener untuk perubahan status
-           statusSelect.addEventListener('change', function() {
-               toggleObatFields(this.value);
-           });
+    const debouncedSearch = debounce(searchStudent, 300);
 
-           async function searchStudent(searchTerm, searchType) {
-               if (isUpdating || !searchTerm) return;
-               
-               try {
-                   isUpdating = true;
-                   const response = await fetch(`?action=getStudent&${searchType}=${encodeURIComponent(searchTerm)}`);
-                   if (!response.ok) throw new Error('Network response was not ok');
-                   
-                   const data = await response.json();
-                   
-                   if (data && (data.nama || data.nis)) {
-                       if (searchType === 'nis') {
-                           namaInput.value = data.nama;
-                       } else if (searchType === 'nama') {
-                           nisInput.value = data.nis;
-                       }
-                   }
-               } catch (error) {
-                   console.error('Search error:', error);
-               } finally {
-                   isUpdating = false;
-               }
-           }
+    // Event listeners untuk pencarian siswa
+    if (nisInput) {
+        nisInput.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            if (value) debouncedSearch(value, 'nis');
+        });
+    }
 
-           function debounce(func, wait) {
-               let timeout;
-               return function(...args) {
-                   clearTimeout(timeout);
-                   timeout = setTimeout(() => func.apply(this, args), wait);
-               };
-           }
+    if (namaInput) {
+        namaInput.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            if (value.length >= 3) debouncedSearch(value, 'nama');
+        });
+    }
 
-           const debouncedSearch = debounce(searchStudent, 300);
+    // Fungsi untuk clear search
+    function clearSearch() {
+        const searchInput = document.querySelector('.search-input');
+        if (searchInput) {
+            searchInput.value = '';
+            const highlightedRows = document.querySelectorAll('.highlight');
+            highlightedRows.forEach(row => row.classList.remove('highlight'));
+        }
+    }
 
-           nisInput.addEventListener('input', function(e) {
-               const value = e.target.value.trim();
-               if (value) debouncedSearch(value, 'nis');
-           });
+    // Event listener untuk form pencarian
+    const searchForm = document.querySelector('.search-form');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            const searchInput = document.querySelector('.search-input');
+            if (!searchInput.value.trim()) {
+                e.preventDefault();
+                clearSearch();
+            }
+        });
+    }
 
-           namaInput.addEventListener('input', function(e) {
-               const value = e.target.value.trim();
-               if (value.length >= 3) debouncedSearch(value, 'nama');
-           });
+    // Event listener untuk tombol clear search
+    const clearSearchBtn = document.querySelector('.clear-search');
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            clearSearch();
+            window.location.href = window.location.pathname;
+        });
+    }
 
-           // Form validation
-           document.querySelector('form').addEventListener('submit', function(e) {
-               const suhu = parseFloat(document.getElementById('suhu').value);
-               
-               if (suhu < 35 || suhu > 42) {
-                   e.preventDefault();
-                   alert('Suhu harus berada dalam rentang 35°C - 42°C');
-                   return false;
-               }
+    // Event listener untuk clear button
+    const clearButton = document.querySelector('.clear-button');
+    if (clearButton) {
+        clearButton.addEventListener('click', function(e) {
+            clearSearch();
+        });
+    }
 
-               const nis = document.getElementById('nis').value;
-               if (!/^\d+$/.test(nis)) {
-                   e.preventDefault();
-                   alert('NIS harus berupa angka');
-                   return false;
-               }
+    // Event listener untuk search input
+    const searchInput = document.querySelector('.search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            const clearButton = document.querySelector('.clear-search');
+            if (clearButton) {
+                clearButton.style.display = this.value ? 'flex' : 'none';
+            }
+        });
+    }
 
-               const kelas = document.getElementById('kelas').value;
-               if (kelas.length < 2) {
-                   e.preventDefault();
-                   alert('Kelas harus diisi dengan benar (minimal 2 karakter)');
-                   return false;
-               }
+    // Auto-hide alerts
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            alert.style.transition = 'opacity 0.5s ease-out';
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 500);
+        }, 5000);
+    });
 
-               // Validasi field obat jika status Sakit
-               if (statusSelect.value === 'Sakit') {
-                   const namaObat = document.getElementById('nama_obat').value;
-                   const jumlahObat = document.getElementById('jumlah_obat').value;
-                   
-                   if (!namaObat) {
-                       e.preventDefault();
-                       alert('Pilih obat yang akan diberikan');
-                       return false;
-                   }
-
-                   if (!jumlahObat || jumlahObat < 1) {
-                       e.preventDefault();
-                       alert('Masukkan jumlah obat yang valid');
-                       return false;
-                   }
-               }
-           });
-
-           // Alert auto-hide
-           const alerts = document.querySelectorAll('.alert');
-           alerts.forEach(alert => {
-               setTimeout(() => {
-                   alert.style.transition = 'opacity 0.5s ease-out';
-                   alert.style.opacity = '0';
-                   setTimeout(() => alert.remove(), 500);
-               }, 5000);
-           });
-       });
-   </script>
+    // Init status fields
+    toggleObatFields(statusSelect.value);
+});
+</script>
 </body>
 </html>

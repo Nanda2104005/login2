@@ -1,14 +1,107 @@
 <?php
 session_start();
 
-// Database connection
+// Database connection with improved error handling
 $conn = mysqli_connect("localhost", "root", "", "user_database");
 
 if (!$conn) {
-    die("Koneksi gagal: " . mysqli_connect_error());
+    // Log the connection error
+    error_log("Database connection failed: " . mysqli_connect_error());
+    
+    // Display a user-friendly error message
+    die("Maaf, terjadi kesalahan dalam koneksi database. Silakan coba lagi nanti.");
 }
 
+// Set character set to ensure proper character handling
+mysqli_set_charset($conn, "utf8mb4");
+
 // Function to get monitoring data with status highlighting
+function processMultilineInput($inputArray) {
+    // Jika input bukan array, kembalikan input kosong
+    if (!is_array($inputArray)) {
+        return '';
+    }
+    
+    // Bersihkan dan filter array
+    $cleanedArray = array_filter(array_map('trim', $inputArray), function($value) {
+        return $value !== '';
+    });
+    
+    // Gabungkan kembali dengan koma
+    return implode(',', $cleanedArray);
+}
+
+// Fungsi untuk membalikkan proses (dari format database ke format tampilan)
+function formatMultilineOutput($inputString) {
+    // Jika input kosong, kembalikan string kosong
+    if (empty($inputString)) {
+        return '';
+    }
+    
+    // Pecah string berdasarkan koma
+    $items = explode(',', $inputString);
+    
+    // Gabungkan kembali dengan baris baru
+    return implode("\n", $items);
+}
+
+// Fungsi update data monitoring
+function updateMonitoringData($id, $data) {
+    global $conn;
+    
+    // Proses input dengan fungsi yang diperbarui
+    $processedDates = processMultilineInput($data['notification_date'] ?? []);
+    $processedTimes = processMultilineInput($data['notification_time'] ?? []);
+    $processedDescriptions = processMultilineInput($data['description'] ?? []);
+    
+    // Update data monitoring
+    $query = "UPDATE monitoringkesehatan SET
+              nama = ?,
+              nis = ?,
+              kelas = ?,
+              suhu = ?,
+              status = ?,
+              keluhan = ?,
+              diagnosis = ?
+              WHERE id = ?";
+    
+    $stmt = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($stmt, "sssdsssi", 
+        $data['nama'],
+        $data['nis'],
+        $data['kelas'],
+        $data['suhu'],
+        $data['status'],
+        $data['keluhan'],
+        $data['diagnosis'],
+        $id
+    );
+    
+    $result = mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+
+    // Update data pengingat obat
+    $query = "UPDATE pengingatobat SET
+              notification_date = ?, 
+              time_intervals = ?, 
+              description = ?
+              WHERE id = (SELECT pengingat_id FROM monitoringkesehatan WHERE id = ?)";
+    
+    $stmt = mysqli_prepare($conn, $query);
+    mysqli_stmt_bind_param($stmt, "sssi", 
+        $processedDates, 
+        $processedTimes, 
+        $processedDescriptions, 
+        $id
+    );
+    
+    $result = mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
+    return $result;
+}
+
+// Function to get monitoring data
 function getMonitoringData() {
     global $conn;
     $query = "SELECT m.*, 
@@ -16,7 +109,9 @@ function getMonitoringData() {
                 WHEN m.status = 'Sakit' THEN 'severe'
                 ELSE 'healthy'
               END as severity,
-              p.notification_date, p.notification_time, p.description  
+              p.notification_date, 
+              p.time_intervals as notification_time, 
+              p.description  
               FROM monitoringkesehatan m
               LEFT JOIN pengingatobat p ON m.pengingat_id = p.id
               ORDER BY 
@@ -24,58 +119,25 @@ function getMonitoringData() {
                 m.suhu DESC";
 
     $result = mysqli_query($conn, $query);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
-}
-
-// Function to update monitoring data
-function updateMonitoringData($id, $data) {
-    global $conn;
     
-    $checkQuery = "SELECT id FROM monitoringkesehatan WHERE nis = ? AND id != ?";
-    $stmtCheck = mysqli_prepare($conn, $checkQuery);
-    mysqli_stmt_bind_param($stmtCheck, "si", $data['nis'], $id);
-    mysqli_stmt_execute($stmtCheck);
-    mysqli_stmt_store_result($stmtCheck);
-    
-    if (mysqli_stmt_num_rows($stmtCheck) > 0) {
-        mysqli_stmt_close($stmtCheck);
-        return "NIS sudah digunakan oleh siswa lain.";
+    if (!$result) {
+        error_log("Query failed: " . mysqli_error($conn));
+        return [];
     }
     
-    mysqli_stmt_close($stmtCheck);
-
-    $query = "UPDATE monitoringkesehatan SET 
-              nama = ?, nis = ?, kelas = ?, suhu = ?, 
-              status = ?, keluhan = ?, diagnosis = ?
-              WHERE id = ?";
-              
-    $stmt = mysqli_prepare($conn, $query);
-    mysqli_stmt_bind_param($stmt, "sssdsssi", 
-        $data['nama'], $data['nis'], $data['kelas'], $data['suhu'],
-        $data['status'], $data['keluhan'], $data['diagnosis'], $id
-    );
+    $data = mysqli_fetch_all($result, MYSQLI_ASSOC);
     
-    $result = mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-    
-    if ($result) {
-        // Update data di tabel pengingatobat
-        $query = "UPDATE pengingatobat SET
-                  notification_date = ?, notification_time = ?, description = ?
-                  WHERE id = (SELECT pengingat_id FROM monitoringkesehatan WHERE id = ?)";
-        
-        $stmt = mysqli_prepare($conn, $query);
-        mysqli_stmt_bind_param($stmt, "sssi", 
-            $data['notification_date'], $data['notification_time'], $data['description'], $id
-        );
-        
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
+    // Format ulang data untuk tampilan
+    foreach ($data as &$item) {
+        $item['notification_date'] = formatMultilineOutput($item['notification_date']);
+        $item['notification_time'] = formatMultilineOutput($item['notification_time']);
+        $item['description'] = formatMultilineOutput($item['description']);
     }
     
-    return $result;
+    return $data;
 }
 
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_id'])) {
     $edit_id = $_POST['edit_id'];
     $update_data = array(
@@ -97,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_id'])) {
         header("Location: peringatandini.php?message=Data berhasil diupdate");
         exit();
     } else {
-        echo "<p style='color: red;'>$updateResult</p>";
+        echo "<p style='color: red;'>Error updating data</p>";
     }
 }
 
@@ -134,6 +196,41 @@ $monitoringData = getMonitoringData();
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+.dynamic-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.dynamic-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dynamic-input-row input {
+    flex-grow: 1;
+    padding: 0.5rem;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+}
+
+.add-row-btn, .remove-row-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.remove-row-btn {
+    background: var(--accent-color);
 }
 
 body {
@@ -175,18 +272,18 @@ header {
     grid-column: 1 / -1;
     padding: 1rem 0;
     margin-bottom: 1rem;
-    text-align: center; /* Center the header content */
+    text-align: center;
 }
 
 header h1 {
     color: var(--primary-color);
     font-size: 2rem;
     font-weight: 700;
-    display: inline-flex; /* Change to inline-flex */
+    display: inline-flex;
     align-items: center;
     gap: 1rem;
-    justify-content: center; /* Center the icon and text */
-    margin: 0 auto; /* Center the entire header */
+    justify-content: center;
+    margin: 0 auto;
 }
 
 /* Dashboard Layout */
@@ -424,6 +521,28 @@ header h1 {
     box-shadow: 0 0 0 3px rgba(28, 168, 131, 0.1);
 }
 
+/* Notification Styles */
+.notification-group {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+}
+
+.notification-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr auto;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    align-items: start;
+}
+
+.form-buttons {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--glass-border);
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
     .container {
@@ -466,6 +585,10 @@ header h1 {
         left: 50%;
         transform: translateX(-50%);
     }
+
+    .notification-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Custom Scrollbar */
@@ -489,14 +612,14 @@ header h1 {
 }
 
 .modal-scroll {
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
+    max-height: 80vh;
+    overflow-y: auto;
+    padding-right: 1rem;
+}
     </style>
 </head>
 <body>
-    <div class="bg-animation"></div>
+<div class="bg-animation"></div>
     <div class="container">
         <header>
             <h1><i class="fas fa-heartbeat"></i> Sistem Peringatan Dini Kesehatan</h1>
@@ -573,7 +696,8 @@ header h1 {
         </div>
     </div>
 
-    <!-- Modal Edit -->
+
+    <!-- Update the modal section -->
     <div id="editModal" class="modal">
         <div class="modal-content modal-scroll">
             <h2>Edit Data Kesehatan</h2>
@@ -617,23 +741,19 @@ header h1 {
                     <label for="edit_diagnosis">Diagnosis:</label>
                     <input type="text" id="edit_diagnosis" name="diagnosis" required>
                 </div>
-                
-                <div class="form-group">
-                    <label for="edit_notification_date">Tanggal Notifikasi:</label>
-                    <input type="date" id="edit_notification_date" name="notification_date">
-                </div>
-                
-                <div class="form-group">
-                    <label for="edit_notification_time">Waktu Notifikasi:</label>
-                    <input type="time" id="edit_notification_time" name="notification_time">
-                </div>
-                
-                <div class="form-group">
-                    <label for="edit_description">Deskripsi:</label>
-                    <textarea id="edit_description" name="description"></textarea>
+
+                <!-- Updated notification fields -->
+                <div class="form-group notification-group">
+                    <label>Jadwal Notifikasi:</label>
+                    <div id="notification-container">
+                        <!-- Existing rows will be populated here by JavaScript -->
+                    </div>
+                    <button type="button" class="add-row-btn" onclick="addNotificationRow()">
+                        <i class="fas fa-plus"></i> Tambah Jadwal
+                    </button>
                 </div>
 
-                <div class="button-container">
+                <div class="button-container form-buttons">
                     <button type="submit" class="edit-button">
                         <i class="fas fa-save"></i> Simpan Perubahan
                     </button>
@@ -646,19 +766,11 @@ header h1 {
     </div>
 
     <script>
-        function updateDashboard() {
-            const data = <?php echo json_encode($monitoringData); ?>;
-            let siswaSehat = data.filter(d => d.status === 'Sehat').length;
-            let siswaSakit = data.filter(d => d.status === 'Sakit').length;
-
-            document.getElementById('siswaSehat').textContent = siswaSehat;
-            document.getElementById('siswaSakit').textContent = siswaSakit;
-        }
-
         function openEditModal(data) {
             const modal = document.getElementById('editModal');
             modal.style.display = 'block';
             
+            // Set basic fields
             document.getElementById('edit_id').value = data.id;
             document.getElementById('edit_nama').value = data.nama;
             document.getElementById('edit_nis').value = data.nis;
@@ -667,13 +779,56 @@ header h1 {
             document.getElementById('edit_status').value = data.status;
             document.getElementById('edit_keluhan').value = data.keluhan;
             document.getElementById('edit_diagnosis').value = data.diagnosis;
-            document.getElementById('edit_notification_date').value = data.notification_date;
-            document.getElementById('edit_notification_time').value = data.notification_time;
-            document.getElementById('edit_description').value = data.description;
+            
+            // Clear existing notification rows
+            const container = document.getElementById('notification-container');
+            container.innerHTML = '';
+            
+            // Split the notification data
+            const dates = data.notification_date ? data.notification_date.split('\n') : [];
+            const times = data.notification_time ? data.notification_time.split('\n') : [];
+            const descriptions = data.description ? data.description.split('\n') : [];
+            
+            // Create rows for existing data
+            const maxLength = Math.max(dates.length, times.length, descriptions.length);
+            for (let i = 0; i < maxLength; i++) {
+                addNotificationRow(dates[i] || '', times[i] || '', descriptions[i] || '');
+            }
+            
+            // If no existing data, add one empty row
+            if (maxLength === 0) {
+                addNotificationRow();
+            }
+        }
+
+        function addNotificationRow(date = '', time = '', description = '') {
+            const container = document.getElementById('notification-container');
+            const row = document.createElement('div');
+            row.className = 'notification-row';
+            
+            row.innerHTML = `
+                <input type="date" name="notification_date[]" value="${date}" class="notification-date-input">
+                <input type="time" name="notification_time[]" value="${time}" class="notification-time-input">
+                <input type="text" name="description[]" value="${description}" placeholder="Deskripsi notifikasi" class="notification-description-input">
+                <button type="button" class="remove-row-btn" onclick="this.parentElement.remove()">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            
+            container.appendChild(row);
         }
 
         function closeEditModal() {
             document.getElementById('editModal').style.display = 'none';
+        }
+
+        function updateDashboard() {
+            const data = <?php echo json_encode($monitoringData); ?>;
+            let siswaSehat = data.filter(d => d.status === 'Sehat').length;
+            let siswaSakit = data.filter(d => d.status === 'Sakit').length;
+
+            document.getElementById('siswaSehat').textContent = siswaSehat;
+            document.getElementById('siswaSakit').textContent = siswaSakit;
         }
 
         function printSuratIzin(id) {
@@ -688,9 +843,11 @@ header h1 {
             }
         }
 
-        // Initialize dashboard
-        updateDashboard();
-        
+        // Initialize dashboard on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDashboard();
+        });
+
         // Auto refresh every minute
         setInterval(function() {
             location.reload();

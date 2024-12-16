@@ -1,14 +1,12 @@
-
-
 <?php
 
 session_start();
 
 // database_config.php
 define('DB_HOST', 'localhost');
-define('DB_USER', 'your_username');
-define('DB_PASS', 'your_password');
-define('DB_NAME', 'user_database');
+define('DB_USER', 'root');          // Default XAMPP username
+define('DB_PASS', '');              // Default XAMPP has no password
+define('DB_NAME', 'user_database'); // Your database name
 
 require_once 'sessioncheck.php';
 // Connection function
@@ -87,6 +85,9 @@ if ($_SERVER['PHP_SELF'] === '/manajemen_kesehatan.php' ||
     $_SERVER['PHP_SELF'] === '/analisiskesehatan.php') {
     cekAkses('admin');
 }
+
+// Database connection for slider
+$conn = connectDB();
 ?>
 
 <!DOCTYPE html>
@@ -100,20 +101,20 @@ if ($_SERVER['PHP_SELF'] === '/manajemen_kesehatan.php' ||
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
         
         :root {
-    --primary-color: #1ca883;
-    --primary-dark: #158a6d;
-    --secondary-color: #f0f9f6;
-    --accent-color: #ff6b6b;
-    --text-color: #2c3e50;
-    --card-hover: #e8f5f1;
-    --glass-bg: rgba(255, 255, 255, 0.95);
-    --glass-border: rgba(255, 255, 255, 0.18);
+            --primary-color: #1ca883;
+            --primary-dark: #158a6d;
+            --secondary-color: #f0f9f6;
+            --accent-color: #ff6b6b;
+            --text-color: #2c3e50;
+            --card-hover: #e8f5f1;
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(255, 255, 255, 0.18);
         }
 
         * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }    
 
         /* Updated: Added flex layout and min-height for better footer positioning */
@@ -733,8 +734,98 @@ body {
             align-items: center;
             gap: 0.5rem;
         }
-        
 
+    
+        
+        /* Slider Styles */
+.slider-container {
+    position: relative;
+    width: 100%;
+    max-width: 1400px;
+    margin: 2rem auto;
+    overflow: hidden;
+    padding: 0 2rem;
+    height: 400px;
+}
+
+.slider-wrapper {
+    display: flex;
+    transition: transform 0.5s ease-in-out;
+    height: 100%;
+    align-items: center;
+    will-change: transform;
+}
+
+.slide {
+    flex: 0 0 600px;
+    position: relative;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+    margin: 0 1rem;
+    height: 400px;
+}
+
+/* Slider Navigation */
+.slider-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.8);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+.slider-button:hover {
+    background: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.prev {
+    left: 10px;
+}
+
+.next {
+    right: 10px;
+}
+
+/* Dots Navigation */
+.slider-dots {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.dot.active {
+    background: var(--primary-color);
+    transform: scale(1.2);
+}
+
+.slider-wrapper.single-slide {
+    justify-content: center;
+}
+
+.slide.single {
+    margin: 0 auto;
+}
         
     </style>
 </head>
@@ -747,134 +838,483 @@ body {
         <a href="Home.php" class="navbar-brand">
             <img src="images/m3-logo.png" alt="M3 Care Logo">
             M3 Care
+        </a>
+        <div class="navbar-links">
+            <a href="dashboard.php" class="nav-link">
+                <i class="fas fa-tachometer-alt"></i>
+                Dashboard
             </a>
-            <div class="navbar-links">
-                <a href="dashboard.php" class="nav-link">
-                    <i class="fas fa-tachometer-alt"></i>
-                    Dashboard
-                </a>
             <a href="about.php" class="nav-link">
                 <i class="fas fa-info-circle"></i>
                 Tentang Kami
             </a>
-
             <a href="logout.php" class="btn-logout">
-    <i class="fas fa-sign-out-alt"></i>
-    Logout
-</a>
-
-            </div>
-        </div>
-    </nav>
-
-    <section class="hero">
-        <div class="hero-content">
-            <div class="hero-text">
-                <h1>Selamat Datang di M3 Care</h1>
-                <p>Sistem Informasi Kesehatan Modern untuk SMA Muhammadiyah 3 Jember. Monitoring kesehatan siswa dengan teknologi terkini untuk masa depan yang lebih sehat.</p>
-                <a href="dashboard.php" class="btn-start">
-                    <i class="fas fa-arrow-right"></i>
-                    Mulai Sekarang
-                </a>
-            </div>
-            <div class="hero-image">
-            <img src="images/logo MU.png" alt="Healthcare Illustration" style="max-width: 300px; height: auto; float: right;">
-            </div>
-        </div>
-    </section>
-
-    <section class="features">
-        <div class="features-grid">
-            <div class="feature-card">
-                <i class="fas fa-user-md feature-icon"></i>
-                <h3>Manajemen Kesehatan Digital</h3>
-                <p>Kelola data kesehatan siswa dengan sistem digital yang terintegrasi dan mudah diakses.</p>
-            </div>
-
-            <div class="feature-card">
-                <i class="fas fa-heartbeat feature-icon"></i>
-                <h3>Monitoring Real-time</h3>
-                <p>Pantau kondisi kesehatan siswa secara real-time dengan teknologi modern.</p>
-             </a>
-            </div>
-
-            <div class="feature-card">
-        <i class="fas fa-notes-medical feature-icon"></i>
-        <h3>Rekam Kesehatan Siswa Terpadu</h3>
-        <p>Akses riwayat kesehatan lengkap dengan sistem penyimpanan yang aman.</p>
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
             </a>
-           </div>
-
-            <div class="feature-card">
-                <i class="fas fa-chart-line feature-icon"></i>
-                <h3> Laporan Digital</h3>
-                <p>Dapatkan insight kesehatan melalui analisis data dan laporan komprehensif.</p>
-            </div>
-        </div>
-    </section>
-           
         </div>
     </div>
+</nav>
 
+<section class="hero">
+    <div class="hero-content">
+        <div class="hero-text">
+            <h1>Selamat Datang di M3 Care</h1>
+            <p>Sistem Informasi Kesehatan Modern untuk SMA Muhammadiyah 3 Jember. Monitoring kesehatan siswa dengan teknologi terkini untuk masa depan yang lebih sehat.</p>
+            <a href="dashboard.php" class="btn-start">
+                <i class="fas fa-arrow-right"></i>
+                Mulai Sekarang
+            </a>
+        </div>
+        <div class="hero-image">
+            <img src="images/logo MU.png" alt="Healthcare Illustration" style="max-width: 300px; height: auto; float: right;">
+        </div>
+    </div>
+</section>
 
+<!-- Add Image Slider Section -->
+<div class="slider-container">
+        <div class="slider-wrapper">
+            <?php
+            // Get images from edukasi_kesehatan
+            $sql = "SELECT gambar, judul FROM edukasi_kesehatan WHERE gambar IS NOT NULL";
+            $result = $conn->query($sql);
+            
+            if ($result->num_rows > 0) {
+                while($row = $result->fetch_assoc()) {
+                    echo '<div class="slide" onclick="openModal(this)">';
+                    echo '<img src="' . htmlspecialchars($row['gambar']) . '" 
+                          alt="' . htmlspecialchars($row['judul']) . '" 
+                          data-full-img="' . htmlspecialchars($row['gambar']) . '" 
+                          data-caption="' . htmlspecialchars($row['judul']) . '">';
+                    echo '<div class="slide-caption">' . htmlspecialchars($row['judul']) . '</div>';
+                    echo '</div>';
+                }
+            }
+            ?>
+    </div>
+        <button class="slider-button prev">&#10094;</button>
+        <button class="slider-button next">&#10095;</button>
+        <div class="slider-dots"></div>
+    </div>
 
-    <section class="stats">
-        <div class="stats-grid">
-            <div class="stat-item">
-                <h3>350+</h3>
-                <p>Siswa Terpantau</p>
-            </div>
-            <div class="stat-item">
-                <h3>24/7</h3>
-                <p>Monitoring Aktif</p>
-            </div>
-            <div class="stat-item">
-                <h3>99,9%</h3>
-                <p>Data Transparan</p>
-            </div>
-            <div class="stat-item">
-                <h3>30</h3>
-                <p>Tahun Pengalaman</p>           
-    </section>
+    <!-- Image Modal -->
+    <div id="imageModal" class="image-modal">
+        <span class="close-modal">&times;</span>
+        <img id="modalImage" class="modal-content">
+        <div id="modalCaption"></div>
+    </div>
 
+<section class="features">
+    <div class="features-grid">
+        <div class="feature-card">
+            <i class="fas fa-user-md feature-icon"></i>
+            <h3>Manajemen Kesehatan Digital</h3>
+            <p>Kelola data kesehatan siswa dengan sistem digital yang terintegrasi dan mudah diakses.</p>
+        </div>
 
+        <div class="feature-card">
+            <i class="fas fa-heartbeat feature-icon"></i>
+            <h3>Monitoring Real-time</h3>
+            <p>Pantau kondisi kesehatan siswa secara real-time dengan teknologi modern.</p>
+        </div>
 
-    <footer>
-        <p>&copy; 2024 M3 Care - Sistem Informasi Kesehatan Sekolah SMA Muhammadiyah 3 Jember
-                </footer>
+        <div class="feature-card">
+            <i class="fas fa-notes-medical feature-icon"></i>
+            <h3>Rekam Kesehatan Siswa Terpadu</h3>
+            <p>Akses riwayat kesehatan lengkap dengan sistem penyimpanan yang aman.</p>
+        </div>
 
-                <script>
-        // Toggle menu mobile
-        const menuToggle = document.querySelector('.menu-toggle');
-        const navbarLinks = document.querySelector('.navbar-links');
+        <div class="feature-card">
+            <i class="fas fa-chart-line feature-icon"></i>
+            <h3>Laporan Digital</h3>
+            <p>Dapatkan insight kesehatan melalui analisis data dan laporan komprehensif.</p>
+        </div>
+    </div>
+</section>
+
+<section class="stats">
+    <div class="stats-grid">
+        <div class="stat-item">
+            <h3>350+</h3>
+            <p>Siswa Terpantau</p>
+        </div>
+        <div class="stat-item">
+            <h3>24/7</h3>
+            <p>Monitoring Aktif</p>
+        </div>
+        <div class="stat-item">
+            <h3>99,9%</h3>
+            <p>Data Transparan</p>
+        </div>
+        <div class="stat-item">
+            <h3>30</h3>
+            <p>Tahun Pengalaman</p>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <p>&copy; 2024 M3 Care - Sistem Informasi Kesehatan Sekolah SMA Muhammadiyah 3 Jember</p>
+</footer>
+
+<!-- Add this to your HTML -->
+<style>
+.slider-container {
+    position: relative;
+    width: 100%;
+    max-width: 1400px;
+    margin: 2rem auto;
+    overflow: hidden;
+    padding: 0 2rem;
+    height: 400px;
+}
+
+.slider-wrapper {
+    display: flex;
+    transition: transform 0.5s ease-in-out;
+    height: 100%;
+    align-items: center;
+    will-change: transform;
+}
+
+.slider-wrapper.single-slide {
+    justify-content: center;
+}
+
+.slide {
+    flex: 0 0 600px;
+    position: relative;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+    margin: 0 1rem;
+    height: 400px;
+}
+
+.slide.single {
+    margin: 0 auto;
+}
+
+.slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.slide-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    color: white;
+    padding: 1rem;
+    font-size: 1rem;
+    text-align: center;
+}
+
+.slider-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.8);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: #333;
+}
+
+.slider-button:hover {
+    background: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.prev { left: 10px; }
+.next { right: 10px; }
+
+.slider-dots {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.dot.active {
+    background: var(--primary-color);
+    transform: scale(1.2);
+}
+
+.image-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    margin: auto;
+    display: block;
+    max-width: 90%;
+    max-height: 90vh;
+    border-radius: 8px;
+    animation: zoom 0.3s ease-in-out;
+}
+
+.close-modal {
+    position: absolute;
+    right: 35px;
+    top: 15px;
+    color: #f1f1f1;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+    z-index: 1000;
+}
+
+#modalCaption {
+    margin: auto;
+    display: block;
+    width: 80%;
+    text-align: center;
+    color: white;
+    padding: 20px 0;
+    font-size: 1.2em;
+}
+
+@keyframes zoom {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+}
+
+@media (max-width: 768px) {
+    .slider-container {
+        height: 300px;
+    }
+    
+    .slide {
+        flex: 0 0 100%;
+        height: 300px;
+    }
+    
+    .slider-button {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
+}
+</style>
+
+<!-- Add this script before closing body tag -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize slider elements
+    const sliderContainer = document.querySelector('.slider-container');
+    const sliderWrapper = document.querySelector('.slider-wrapper');
+    const slides = document.querySelectorAll('.slide');
+    const prevButton = document.querySelector('.prev');
+    const nextButton = document.querySelector('.next');
+    const dotsContainer = document.querySelector('.slider-dots');
+
+    // Check for single slide
+    const isSingleSlide = slides.length === 1;
+
+    // Configure single slide
+    if (isSingleSlide) {
+        sliderWrapper.classList.add('single-slide');
+        slides[0].classList.add('single');
         
-        // Tampilkan tombol menu hanya di mobile
-        function checkScreenSize() {
-            if (window.innerWidth <= 768) {
-                menuToggle.style.display = 'block';
+        // Hide navigation
+        if (prevButton) prevButton.style.display = 'none';
+        if (nextButton) nextButton.style.display = 'none';
+        if (dotsContainer) dotsContainer.style.display = 'none';
+        
+        // Center the single slide
+        slides[0].style.margin = '0 auto';
+        return; // Exit early as no need for slider functionality
+    }
+
+    // Slider variables
+    let currentIndex = 0;
+    let isTransitioning = false;
+    let autoSlideInterval;
+
+    // Create dots for navigation
+    slides.forEach((_, index) => {
+        const dot = document.createElement('div');
+        dot.classList.add('dot');
+        if (index === 0) dot.classList.add('active');
+        dot.addEventListener('click', () => goToSlide(index));
+        dotsContainer.appendChild(dot);
+    });
+
+    // Update active dot
+    function updateDots() {
+        document.querySelectorAll('.dot').forEach((dot, index) => {
+            dot.classList.toggle('active', index === currentIndex);
+        });
+    }
+
+    // Go to specific slide
+    function goToSlide(index) {
+        if (isTransitioning) return;
+        isTransitioning = true;
+        currentIndex = index;
+        const offset = -index * 100 + '%';
+        sliderWrapper.style.transform = `translateX(${offset})`;
+        updateDots();
+        
+        setTimeout(() => {
+            isTransitioning = false;
+        }, 500);
+    }
+
+    // Next slide
+    function nextSlide() {
+        goToSlide(currentIndex === slides.length - 1 ? 0 : currentIndex + 1);
+    }
+
+    // Previous slide
+    function prevSlide() {
+        goToSlide(currentIndex === 0 ? slides.length - 1 : currentIndex - 1);
+    }
+
+    // Auto slide functionality
+    function startAutoSlide() {
+        stopAutoSlide();
+        autoSlideInterval = setInterval(nextSlide, 5000);
+    }
+
+    function stopAutoSlide() {
+        if (autoSlideInterval) {
+            clearInterval(autoSlideInterval);
+        }
+    }
+
+    // Touch handling
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    sliderWrapper.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        stopAutoSlide();
+    }, { passive: true });
+
+    sliderWrapper.addEventListener('touchend', (e) => {
+        touchEndX = e.changedTouches[0].clientX;
+        const swipeDistance = touchStartX - touchEndX;
+        
+        if (Math.abs(swipeDistance) > 50) {
+            if (swipeDistance > 0) {
+                nextSlide();
             } else {
-                menuToggle.style.display = 'none';
-                navbarLinks.style.display = 'flex';
+                prevSlide();
             }
         }
         
-        // Check saat halaman dimuat dan saat ukuran layar berubah
-        window.addEventListener('load', checkScreenSize);
-        window.addEventListener('resize', checkScreenSize);
-        
-        // Toggle menu saat tombol diklik
-        menuToggle.addEventListener('click', () => {
-            navbarLinks.classList.toggle('show');
-        });
-        
-        // Tutup menu saat link diklik
-        document.querySelectorAll('.nav-link').forEach(link => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth <= 768) {
-                    navbarLinks.classList.remove('show');
-                }
-            });
-        });
-    </script>
+        startAutoSlide();
+    }, { passive: true });
+
+    // Modal functionality
+    function openModal(slideElement) {
+        const modal = document.getElementById('imageModal');
+        const modalImg = document.getElementById('modalImage');
+        const modalCaption = document.getElementById('modalCaption');
+        const img = slideElement.querySelector('img');
+
+        modal.style.display = 'block';
+        modalImg.src = img.dataset.fullImg;
+        modalCaption.textContent = img.dataset.caption;
+        stopAutoSlide();
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('imageModal');
+        modal.style.display = 'none';
+        if (!isSingleSlide) startAutoSlide();
+    }
+
+    // Set up navigation
+    if (prevButton) prevButton.addEventListener('click', () => {
+        prevSlide();
+        stopAutoSlide();
+        startAutoSlide();
+    });
+
+    if (nextButton) nextButton.addEventListener('click', () => {
+        nextSlide();
+        stopAutoSlide();
+        startAutoSlide();
+    });
+
+    // Modal events
+    document.querySelector('.close-modal').addEventListener('click', closeModal);
+    window.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('imageModal')) {
+            closeModal();
+        }
+    });
+
+    // Add click events to slides
+    slides.forEach(slide => {
+        slide.addEventListener('click', () => openModal(slide));
+    });
+
+    // Handle hover events
+    if (!isSingleSlide) {
+        sliderWrapper.addEventListener('mouseenter', stopAutoSlide);
+        sliderWrapper.addEventListener('mouseleave', startAutoSlide);
+    }
+
+    // Handle visibility change
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopAutoSlide();
+        } else if (!isSingleSlide) {
+            startAutoSlide();
+        }
+    });
+
+    // Start auto-sliding if multiple slides
+    if (!isSingleSlide) {
+        startAutoSlide();
+    }
+});
+</script>
+
 </body>
 </html>
+
+<?php
+// Close database connection
+if(isset($conn)) {
+    $conn->close();
+}
+?>

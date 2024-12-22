@@ -21,11 +21,19 @@ $server = 'localhost';
 $username = 'root';
 $password = '';
 $database = 'user_database';
-$conn = mysqli_connect($server, $username, $password, $database);
 
-if (!$conn) {
-    die("Koneksi gagal: " . mysqli_connect_error());
+try {
+    $conn = mysqli_connect($server, $username, $password, $database);
+    if (!$conn) {
+        throw new Exception("Koneksi gagal: " . mysqli_connect_error());
+    }
+} catch (Exception $e) {
+    die($e->getMessage());
 }
+
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 // Fungsi untuk mengecek apakah obat expired
 function isObatExpired($conn, $nama_obat) {
@@ -113,11 +121,128 @@ try {
 $pesanSukses = "";
 $pesanError = "";
 
-// Logika Pencarian
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$searchResults = array();
+// Handle POST request
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Start transaction
+    mysqli_begin_transaction($conn);
+    
+    try {
+        // Validate and sanitize input
+        $nama = isset($_POST['nama']) ? htmlspecialchars(trim($_POST['nama'])) : '';
+        $nis = isset($_POST['nis']) ? htmlspecialchars(trim($_POST['nis'])) : '';
+        $kelas = isset($_POST['kelas']) ? htmlspecialchars(trim($_POST['kelas'])) : '';
+        $suhu = isset($_POST['suhu']) ? floatval($_POST['suhu']) : 0.0;
+        $status = isset($_POST['status']) ? htmlspecialchars(trim($_POST['status'])) : '';
+        $keluhan = isset($_POST['keluhan']) ? htmlspecialchars(trim($_POST['keluhan'])) : '';
+        $diagnosis = isset($_POST['diagnosis']) ? htmlspecialchars(trim($_POST['diagnosis'])) : '';
+        $pertolongan = isset($_POST['pertolongan']) ? htmlspecialchars(trim($_POST['pertolongan'])) : '';
+        $nama_obat = isset($_POST['nama_obat']) ? htmlspecialchars(trim($_POST['nama_obat'])) : '';
+        $jumlah_obat = isset($_POST['jumlah_obat']) ? intval($_POST['jumlah_obat']) : 0;
+
+        // Get user_id
+        $student_user_id = getUserIdByNIS($conn, $nis);
+        if (!$student_user_id) {
+            throw new Exception("Siswa dengan NIS tersebut tidak ditemukan.");
+        }
+
+        // Validate required fields
+        if (empty($nama) || empty($nis) || empty($kelas) || empty($suhu) || empty($status)) {
+            throw new Exception("Mohon lengkapi semua data yang diperlukan.");
+        }
+
+        // Check if medicine is needed and validate
+        if ($status === 'Sakit' && !empty($nama_obat) && $jumlah_obat > 0) {
+            if (isObatExpired($conn, $nama_obat)) {
+                throw new Exception("Obat '$nama_obat' sudah expired! Silakan pilih obat lain.");
+            }
+
+            // Check medicine stock
+            $stmt = mysqli_prepare($conn, "SELECT jumlah FROM stok_obat WHERE nama = ? FOR UPDATE");
+            mysqli_stmt_bind_param($stmt, "s", $nama_obat);
+            mysqli_stmt_execute($stmt);
+            $result = mysqli_stmt_get_result($stmt);
+            
+            if ($result && $row = mysqli_fetch_assoc($result)) {
+                $stok_current = $row['jumlah'];
+                if ($stok_current < $jumlah_obat) {
+                    throw new Exception("Stok obat tidak mencukupi! Stok tersedia: " . $stok_current);
+                }
+
+                // Update medicine stock
+                $stmt = mysqli_prepare($conn, "UPDATE stok_obat SET jumlah = jumlah - ? WHERE nama = ?");
+                mysqli_stmt_bind_param($stmt, "is", $jumlah_obat, $nama_obat);
+                if (!mysqli_stmt_execute($stmt)) {
+                    throw new Exception("Gagal memperbarui stok obat");
+                }
+            } else {
+                throw new Exception("Obat '$nama_obat' tidak ditemukan dalam stok!");
+            }
+        }
+
+        // Insert into pengingatobat
+        $stmt = mysqli_prepare($conn, "INSERT INTO pengingatobat 
+            (patient_id, condition_name, severity, user_id, nama_obat, jumlah) 
+            VALUES (?, ?, ?, ?, ?, ?)");
+        
+        $patient_id = $nis;
+        $condition_name = $status == 'Sakit' ? $diagnosis : 'Sehat';
+        $severity = $status == 'Sakit' ? 'Medium' : 'Low';
+        
+        mysqli_stmt_bind_param($stmt, "sssisi", 
+            $patient_id, $condition_name, $severity, $student_user_id, $nama_obat, $jumlah_obat
+        );
+        
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Error executing pengingat statement: " . mysqli_stmt_error($stmt));
+        }
+        
+        $pengingat_id = mysqli_insert_id($conn);
+
+        // Insert into monitoringkesehatan
+        $stmt = mysqli_prepare($conn, "INSERT INTO monitoringkesehatan 
+            (nama, nis, keluhan, diagnosis, kelas, suhu, status, pertolongan_pertama, pengingat_id, user_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+        mysqli_stmt_bind_param($stmt, "sssssdssii", 
+            $nama, $nis, $keluhan, $diagnosis, $kelas, $suhu, $status, $pertolongan, $pengingat_id, $student_user_id
+        );
+        
+        if (!mysqli_stmt_execute($stmt)) {
+            // Check for duplicate entry
+            if (mysqli_errno($conn) === 1062) {
+                throw new Exception("Data untuk NIS ini sudah ada dalam sistem.");
+            }
+            throw new Exception("Error executing monitoring statement: " . mysqli_stmt_error($stmt));
+        }
+
+        // Insert into rekam_kesehatan
+        $stmt = mysqli_prepare($conn, "INSERT INTO rekam_kesehatan 
+            (nama, nis, keluhan, diagnosis, Pertolongan_Pertama, user_id) 
+            VALUES (?, ?, ?, ?, ?, ?)");
+        
+        mysqli_stmt_bind_param($stmt, "sssssi", 
+            $nama, $nis, $keluhan, $diagnosis, $pertolongan, $student_user_id
+        );
+        
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Error executing rekam statement: " . mysqli_stmt_error($stmt));
+        }
+
+        // Commit transaction
+        mysqli_commit($conn);
+        $pesanSukses = "Data berhasil ditambahkan!";
+
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        $pesanError = $e->getMessage();
+    }
+}
 
 // Query untuk mendapatkan data monitoring dengan pencarian
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$daftarRekamKesehatan = array();
+$searchResults = array();
+
 try {
     if (!empty($search)) {
         $query = "SELECT m.*, p.nama_obat, p.jumlah as jumlah_obat 
@@ -136,161 +261,28 @@ try {
         mysqli_stmt_bind_param($stmt, "ssssss", 
             $search_term, $search_term, $search_term, $search_term, $search_term, $search_term
         );
-
-        $_SESSION['is_searching'] = true;
-        $_SESSION['search_term'] = $search;
     } else {
         $query = "SELECT m.*, p.nama_obat, p.jumlah as jumlah_obat 
                  FROM monitoringkesehatan m 
                  LEFT JOIN pengingatobat p ON m.pengingat_id = p.id
                  ORDER BY m.tanggal DESC";
         $stmt = mysqli_prepare($conn, $query);
-        
-        unset($_SESSION['is_searching']);
-        unset($_SESSION['search_term']);
     }
     
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     
-    if (!$result) {
-        throw new Exception(mysqli_error($conn));
-    }
-    
-    $daftarRekamKesehatan = array();
     while($row = mysqli_fetch_assoc($result)) {
         $daftarRekamKesehatan[] = $row;
         if (!empty($search)) {
             $searchResults[] = $row['id'];
         }
     }
-    mysqli_stmt_close($stmt);
-    
 } catch (Exception $e) {
     $pesanError = "Error mengambil data: " . $e->getMessage();
 }
 
-// Handle POST request
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $nama = isset($_POST['nama']) ? htmlspecialchars(trim($_POST['nama'])) : '';
-    $nis = isset($_POST['nis']) ? htmlspecialchars(trim($_POST['nis'])) : '';
-    $kelas = isset($_POST['kelas']) ? htmlspecialchars(trim($_POST['kelas'])) : '';
-    $suhu = isset($_POST['suhu']) ? floatval($_POST['suhu']) : 0.0;
-    $status = isset($_POST['status']) ? htmlspecialchars(trim($_POST['status'])) : '';
-    $keluhan = isset($_POST['keluhan']) ? htmlspecialchars(trim($_POST['keluhan'])) : '';
-    $diagnosis = isset($_POST['diagnosis']) ? htmlspecialchars(trim($_POST['diagnosis'])) : '';
-    $pertolongan = isset($_POST['pertolongan']) ? htmlspecialchars(trim($_POST['pertolongan'])) : '';
-    $nama_obat = isset($_POST['nama_obat']) ? htmlspecialchars(trim($_POST['nama_obat'])) : '';
-    $jumlah_obat = isset($_POST['jumlah_obat']) ? intval($_POST['jumlah_obat']) : 0;
-
-    try {
-        $student_user_id = getUserIdByNIS($conn, $nis);
-        if (!$student_user_id) {
-            throw new Exception("Siswa dengan NIS tersebut tidak ditemukan.");
-        }
-
-        if (empty($nama) || empty($nis) || empty($kelas) || empty($suhu) || empty($status)) {
-            throw new Exception("Mohon lengkapi semua data yang diperlukan.");
-        }
-
-        mysqli_begin_transaction($conn);
-
-        // Jika status sakit dan ada pemberian obat
-        if ($status === 'Sakit' && !empty($nama_obat) && $jumlah_obat > 0) {
-            // Cek apakah obat expired
-            if (isObatExpired($conn, $nama_obat)) {
-                throw new Exception("Obat '$nama_obat' sudah expired! Silakan pilih obat lain.");
-            }
-
-            // Cek stok obat
-            $stmt = mysqli_prepare($conn, "SELECT jumlah FROM stok_obat WHERE nama = ? FOR UPDATE");
-            mysqli_stmt_bind_param($stmt, "s", $nama_obat);
-            mysqli_stmt_execute($stmt);
-            $result = mysqli_stmt_get_result($stmt);
-            
-            if ($result && $row = mysqli_fetch_assoc($result)) {
-                $stok_current = $row['jumlah'];
-                
-                if ($stok_current < $jumlah_obat) {
-                    throw new Exception("Stok obat tidak mencukupi! Stok tersedia: " . $stok_current);
-                }
-
-                // Update stok obat
-                $stmt = mysqli_prepare($conn, "UPDATE stok_obat SET jumlah = jumlah - ? WHERE nama = ?");
-                mysqli_stmt_bind_param($stmt, "is", $jumlah_obat, $nama_obat);
-                if (!mysqli_stmt_execute($stmt)) {
-                    throw new Exception("Gagal memperbarui stok obat");
-                }
-            } else {
-                throw new Exception("Obat '$nama_obat' tidak ditemukan dalam stok!");
-            }
-        }
-
-        // Insert ke pengingatobat
-        $stmt = mysqli_prepare($conn, "INSERT INTO pengingatobat 
-            (patient_id, condition_name, severity, user_id, nama_obat, jumlah) 
-            VALUES (?, ?, ?, ?, ?, ?)");
-        
-        $patient_id = $nis;
-        $condition_name = $status == 'Sakit' ? $diagnosis : 'Sehat';
-        $severity = $status == 'Sakit' ? 'Medium' : 'Low';
-        
-        mysqli_stmt_bind_param($stmt, "sssisi", 
-            $patient_id, $condition_name, $severity, $student_user_id, $nama_obat, $jumlah_obat
-        );
-        
-        if (!mysqli_stmt_execute($stmt)) {
-            throw new Exception("Error executing pengingat statement: " . mysqli_stmt_error($stmt));
-        }
-        
-        $pengingat_id = mysqli_insert_id($conn);
-        mysqli_stmt_close($stmt);
-
-        // Insert ke monitoringkesehatan
-        $stmt = mysqli_prepare($conn, "INSERT INTO monitoringkesehatan 
-            (nama, nis, keluhan, diagnosis, kelas, suhu, status, pertolongan_pertama, pengingat_id, user_id, tanggal) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-
-        mysqli_stmt_bind_param($stmt, "sssssdssii", 
-            $nama, $nis, $keluhan, $diagnosis, $kelas, $suhu, $status, $pertolongan, $pengingat_id, $student_user_id
-        );
-        
-        if (!mysqli_stmt_execute($stmt)) {
-            throw new Exception("Error executing monitoring statement: " . mysqli_stmt_error($stmt));
-        }
-        
-        $monitoring_id = mysqli_insert_id($conn);
-        mysqli_stmt_close($stmt);
-
-        // Insert ke rekam_kesehatan
-        $stmt = mysqli_prepare($conn, "INSERT INTO rekam_kesehatan 
-            (nama, nis, keluhan, diagnosis, Pertolongan_Pertama, user_id) 
-            VALUES (?, ?, ?, ?, ?, ?)");
-        
-        mysqli_stmt_bind_param($stmt, "sssssi", 
-            $nama, $nis, $keluhan, $diagnosis, $pertolongan, $student_user_id
-        );
-        
-        if (!mysqli_stmt_execute($stmt)) {
-            throw new Exception("Error executing rekam statement: " . mysqli_stmt_error($stmt));
-        }
-        mysqli_stmt_close($stmt);
-
-        mysqli_commit($conn);
-        
-        // Set session untuk scroll position
-        $_SESSION['maintain_scroll'] = true;
-        $_SESSION['scroll_position'] = $_POST['scrollPosition'] ?? 0;
-        
-        $pesanSukses = "Data berhasil ditambahkan!";
-
-    } catch (Exception $e) {
-        mysqli_rollback($conn);
-        $pesanError = $e->getMessage();
-    }
-}
-
-// Query untuk mendapatkan daftar obat
+// Get list of available medicines
 $obat_list = [];
 try {
     $stmt = mysqli_prepare($conn, "SELECT nama, tanggal_kadaluarsa FROM stok_obat WHERE jumlah > 0");

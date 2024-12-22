@@ -98,7 +98,7 @@ $conn = connectDB();
     <title>M3 Care - Modern Healthcare System</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
         
         :root {
             --primary-color: #1ca883;
@@ -115,24 +115,22 @@ $conn = connectDB();
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-        }    
+        }
 
-        /* Updated: Added flex layout and min-height for better footer positioning */
-body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    background-color: var(--secondary-color);
-    color: var(--text-color);
-    line-height: 1.6;
-    overflow-x: hidden;
-    margin-right: 300px;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-}
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            overflow-x: hidden;
+            margin-right: 300px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
 
-
-        /* Animated Background */
+        /* Animation styles */
         .bg-animation {
             position: fixed;
             width: 100vw;
@@ -167,12 +165,7 @@ body {
             animation: float 20s infinite alternate-reverse;
         }
 
-        @keyframes float {
-            0% { transform: translate(0, 0) rotate(0deg); }
-            100% { transform: translate(100px, 100px) rotate(360deg); }
-        }
-
-        /* Modern Navbar */
+        /* Navigation styles */
         .navbar {
             background: var(--glass-bg);
             backdrop-filter: blur(10px);
@@ -400,13 +393,67 @@ body {
             opacity: 0.9;
         }
 
-        /* Footer */
-        footer {
-            background: var(--primary-dark);
-            color: white;
-            padding: 2rem 0;
-            text-align: center;
-        }
+       /* Footer */
+footer {
+    background: var(--primary-dark);
+    color: white;
+    padding: 2rem 0;
+}
+
+.footer-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.social-links {
+    display: flex;
+    gap: 1rem;
+}
+
+.social-link {
+    color: white;
+    text-decoration: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.social-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .download-container {
+        text-align: center;
+        justify-content: center;
+    }
+
+    .download-buttons {
+        justify-content: center;
+    }
+
+    .footer-content {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .social-links {
+        margin-top: 1rem;
+    }
+}
 
         .status-sidebar {
             position: fixed;
@@ -737,72 +784,113 @@ body {
 
     
         
-        /* Slider Styles */
-.slider-container {
+        .slider-container {
     position: relative;
     width: 100%;
-    max-width: 1400px;
-    margin: 2rem auto;
+    max-width: 1000px; /* Reduced max-width for single slide */
+    margin: 4rem auto;
     overflow: hidden;
-    padding: 0 2rem;
-    height: 400px;
+    padding: 0;
+    height: 500px; /* Increased height */
 }
 
 .slider-wrapper {
     display: flex;
     transition: transform 0.5s ease-in-out;
     height: 100%;
-    align-items: center;
-    will-change: transform;
 }
 
 .slide {
-    flex: 0 0 600px;
+    flex: 0 0 100%; /* Changed to 100% for full width */
+    width: 100%;
     position: relative;
     border-radius: 15px;
     overflow: hidden;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
     transition: transform 0.3s ease;
-    margin: 0 1rem;
-    height: 400px;
+    height: 100%;
 }
 
-/* Slider Navigation */
+.slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.slide:hover img {
+    transform: scale(1.02);
+}
+
+.slide-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    color: white;
+    padding: 1rem;
+    font-size: 1rem;
+    text-align: center;
+}
+
 .slider-button {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.9);
     border: none;
-    width: 40px;
-    height: 40px;
+    width: 45px;
+    height: 45px;
     border-radius: 50%;
     cursor: pointer;
     z-index: 10;
     transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .slider-button:hover {
     background: white;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
 }
 
-.prev {
-    left: 10px;
+.prev { left: 20px; }
+.next { right: 20px; }
+
+@media (max-width: 768px) {
+    .slider-container {
+        height: 300px;
+        margin: 2rem auto;
+    }
+    
+    .slider-button {
+        width: 35px;
+        height: 35px;
+        font-size: 1rem;
+    }
+
+    .modal-content.zoomed {
+        transform: scale(1.2);
+    }
 }
 
-.next {
-    right: 10px;
-}
+.prev { left: 10px; }
+.next { right: 10px; }
 
-/* Dots Navigation */
 .slider-dots {
     position: absolute;
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    z-index: 10;
 }
 
 .dot {
@@ -819,12 +907,166 @@ body {
     transform: scale(1.2);
 }
 
-.slider-wrapper.single-slide {
+.image-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(8px);
+}
+
+.modal-content {
+    margin: auto;
+    display: block;
+    max-width: 90%;
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: zoomIn 0.4s ease-out;
+    cursor: zoom-in;
+}
+
+.modal-content.zoomed {
+    transform: scale(1.5);
+    cursor: zoom-out;
+    transition: transform 0.3s ease;
+}
+
+@keyframes zoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+
+.close-modal {
+    position: absolute;
+    right: 25px;
+    top: 15px;
+    color: #fff;
+    font-size: 35px;
+    font-weight: bold;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: all 0.3s ease;
+    background: rgba(0, 0, 0, 0.5);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
     justify-content: center;
 }
 
-.slide.single {
+.close-modal:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+#modalCaption {
+    margin: 20px auto;
+    width: 80%;
+    text-align: center;
+    color: white;
+    padding: 10px;
+    font-size: 1.2em;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+@keyframes zoom {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+}
+
+@media (max-width: 768px) {
+    .slider-container {
+        height: 300px;
+    }
+    
+    .slide {
+        flex: 0 0 100%;
+        height: 300px;
+    }
+    
+    .slider-button {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
+}
+
+/* Download Section */
+.download-section {
+    background: linear-gradient(135deg, var(--primary-color), #159f7f);
+    padding: 3rem 0;
+    margin-top: 2rem;
+}
+
+.download-container {
+    max-width: 1200px;
     margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2rem;
+}
+
+.download-text {
+    flex: 1;
+    min-width: 300px;
+    color: white;
+}
+
+.download-text h3 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.download-text p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.download-buttons {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.download-btn {
+    background: white;
+    color: var(--primary-color);
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.download-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.download-btn i {
+    font-size: 1.5rem;
 }
         
     </style>
@@ -954,185 +1196,39 @@ body {
     </div>
 </section>
 
+<!-- Pre-footer section -->
+<section class="download-section">
+    <div class="download-container">
+        <div class="download-text">
+            <h3>Download Sekarang di Sini</h3>
+            <p>Unduh aplikasi M3 Care untuk akses lebih mudah ke layanan kesehatan sekolah</p>
+        </div>
+        <div class="download-buttons">
+            <a href="#" class="download-btn">
+                <i class="fab fa-google-play"></i>
+                Play Store
+            </a>
+        </div>
+    </div>
+</section>
+
 <footer>
-    <p>&copy; 2024 M3 Care - Sistem Informasi Kesehatan Sekolah SMA Muhammadiyah 3 Jember</p>
+    <div class="footer-content">
+        <div class="footer-left">
+            <p>&copy; 2024 M3 Care - Sistem Informasi Kesehatan Sekolah SMA Muhammadiyah 3 Jember</p>
+        </div>
+        <div class="footer-right">
+            <div class="social-links">
+                <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-youtube"></i></a>
+            </div>
+        </div>
+    </div>
 </footer>
 
-<!-- Add this to your HTML -->
-<style>
-.slider-container {
-    position: relative;
-    width: 100%;
-    max-width: 1400px;
-    margin: 2rem auto;
-    overflow: hidden;
-    padding: 0 2rem;
-    height: 400px;
-}
 
-.slider-wrapper {
-    display: flex;
-    transition: transform 0.5s ease-in-out;
-    height: 100%;
-    align-items: center;
-    will-change: transform;
-}
-
-.slider-wrapper.single-slide {
-    justify-content: center;
-}
-
-.slide {
-    flex: 0 0 600px;
-    position: relative;
-    border-radius: 15px;
-    overflow: hidden;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease;
-    margin: 0 1rem;
-    height: 400px;
-}
-
-.slide.single {
-    margin: 0 auto;
-}
-
-.slide img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.slide-caption {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-    color: white;
-    padding: 1rem;
-    font-size: 1rem;
-    text-align: center;
-}
-
-.slider-button {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(255, 255, 255, 0.8);
-    border: none;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 10;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    color: #333;
-}
-
-.slider-button:hover {
-    background: white;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-}
-
-.prev { left: 10px; }
-.next { right: 10px; }
-
-.slider-dots {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 8px;
-    z-index: 10;
-}
-
-.dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.5);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.dot.active {
-    background: var(--primary-color);
-    transform: scale(1.2);
-}
-
-.image-modal {
-    display: none;
-    position: fixed;
-    z-index: 9999;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.9);
-    backdrop-filter: blur(5px);
-}
-
-.modal-content {
-    margin: auto;
-    display: block;
-    max-width: 90%;
-    max-height: 90vh;
-    border-radius: 8px;
-    animation: zoom 0.3s ease-in-out;
-}
-
-.close-modal {
-    position: absolute;
-    right: 35px;
-    top: 15px;
-    color: #f1f1f1;
-    font-size: 40px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-    z-index: 1000;
-}
-
-#modalCaption {
-    margin: auto;
-    display: block;
-    width: 80%;
-    text-align: center;
-    color: white;
-    padding: 20px 0;
-    font-size: 1.2em;
-}
-
-@keyframes zoom {
-    from { transform: scale(0); }
-    to { transform: scale(1); }
-}
-
-@media (max-width: 768px) {
-    .slider-container {
-        height: 300px;
-    }
-    
-    .slide {
-        flex: 0 0 100%;
-        height: 300px;
-    }
-    
-    .slider-button {
-        width: 32px;
-        height: 32px;
-        font-size: 1rem;
-    }
-}
-</style>
-
-<!-- Add this script before closing body tag -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize slider elements

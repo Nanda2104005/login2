@@ -5,10 +5,7 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
-$db_host = "localhost";
-$db_user = "root";
-$db_pass = "";
-$db_name = "user_database";
+require_once 'config.php';
 
 $conn = mysqli_connect($db_host, $db_user, $db_pass, $db_name);
 

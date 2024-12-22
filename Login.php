@@ -7,12 +7,7 @@ if (isset($_SESSION['username'])) {
     exit();
 }
 
-// Konfigurasi Koneksi Database
-$server = 'localhost';
-$username = 'root';
-$password = '';
-$database = 'user_database';
-
+require_once 'config.php';
 // Membuat koneksi
 $conn = mysqli_connect($server, $username, $password, $database);
 

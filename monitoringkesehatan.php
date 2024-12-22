@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'config.php';
 
 // Fungsi untuk cek status login
 function checkLoginStatus() {
@@ -15,21 +16,6 @@ function checkLoginStatus() {
 }
 
 checkLoginStatus();
-
-// Konfigurasi Koneksi Database
-$server = 'localhost';
-$username = 'root';
-$password = '';
-$database = 'user_database';
-
-try {
-    $conn = mysqli_connect($server, $username, $password, $database);
-    if (!$conn) {
-        throw new Exception("Koneksi gagal: " . mysqli_connect_error());
-    }
-} catch (Exception $e) {
-    die($e->getMessage());
-}
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);

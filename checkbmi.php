@@ -1,20 +1,18 @@
 <?php
 session_start();
+require_once 'config.php'; // Include config file
 
-// Database Configuration
+// Database Class menggunakan konstanta dari config.php
 class Database {
-    private $host = "localhost";
-    private $username = "root";
-    private $password = "";
-    private $database = "user_database";
     public $conn;
 
     public function __construct() {
         try {
-            $this->conn = new mysqli($this->host, $this->username, $this->password, $this->database);
+            $this->conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
             if ($this->conn->connect_error) {
                 throw new Exception("Koneksi database gagal: " . $this->conn->connect_error);
             }
+            $this->conn->set_charset("utf8mb4");
         } catch (Exception $e) {
             die("Error: " . $e->getMessage());
         }

@@ -6,7 +6,7 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
-// haloo
+// KWONTO-
 
 $role = $_SESSION['role'];
 ?>

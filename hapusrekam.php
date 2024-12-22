@@ -2,9 +2,7 @@
 
 <?php
 session_start();
-
-// Koneksi ke database
-$conn = new mysqli("localhost", "root", "", "user_database");
+require_once 'config.php';
 
 // Cek koneksi
 if ($conn->connect_error) {

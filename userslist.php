@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once 'config.php';
 
 // Cek login status
 function checkLoginStatus() {
@@ -10,18 +11,6 @@ function checkLoginStatus() {
 }
 
 checkLoginStatus();
-
-// Koneksi database
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "user_database";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    die("Koneksi gagal: " . $conn->connect_error);
-}
 
 // Cek role pengguna
 $current_username = $_SESSION['username'];
@@ -35,7 +24,6 @@ $user_role = $user_data['role'];
 
 // Fungsi untuk mengupdate password
 function updatePassword($conn, $username, $new_password) {
-    // Menggunakan MD5 untuk kompatibilitas dengan sistem yang ada
     $hashed_password = md5($new_password);
     $stmt = $conn->prepare("UPDATE users SET password = ? WHERE username = ? AND role = 'siswa'");
     $stmt->bind_param("ss", $hashed_password, $username);

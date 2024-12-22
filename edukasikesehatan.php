@@ -1,9 +1,7 @@
 <?php
-// Pastikan session sudah dimulai di awal file
 session_start();
-
-// Koneksi ke database
-$conn = new mysqli("localhost", "root", "", "user_database");
+require_once 'config.php';
+require_once 'sessioncheck.php';
 
 if ($conn->connect_error) {
     die("Koneksi gagal: " . $conn->connect_error);

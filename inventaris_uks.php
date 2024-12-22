@@ -1,12 +1,12 @@
 <?php
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "user_database";
+// Start session and include config
+session_start();
+require_once 'config.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     try {
-        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+        // Create PDO connection using config constants
+        $conn = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         // Penanganan khusus untuk penghapusan
@@ -72,7 +72,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 // Fetch inventory data
 try {
-    $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+    // Create new PDO connection for fetching data
+    $conn = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     $stmt = $conn->prepare("SELECT * FROM inventaris_uks ORDER BY tanggal_masuk DESC");

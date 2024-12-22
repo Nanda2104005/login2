@@ -1,22 +1,7 @@
 <?php
-
 session_start();
-
-// database_config.php
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');          // Default XAMPP username
-define('DB_PASS', '');              // Default XAMPP has no password
-define('DB_NAME', 'user_database'); // Your database name
-
+require_once 'config.php';
 require_once 'sessioncheck.php';
-// Connection function
-function connectDB() {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
-    }
-    return $conn;
-}
 
 // Update user's online status
 function updateUserStatus($userId, $status) {
@@ -1222,7 +1207,7 @@ footer {
                 <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
                 <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
                 <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
-                <a href="#" class="social-link"><i class="fab fa-youtube"></i></a>
+                <a href="https://youtu.be/KyQIdtixMpc?si=dKyOgLQvuixW-yAT" class="social-link"><i class="fab fa-youtube"></i></a>
             </div>
         </div>
     </div>

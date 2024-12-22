@@ -1,8 +1,6 @@
 <?php
 session_start();
-
-// Database connection with improved error handling
-$conn = mysqli_connect("localhost", "root", "", "user_database");
+require_once 'config.php';
 
 if (!$conn) {
     // Log the connection error

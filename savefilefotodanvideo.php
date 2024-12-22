@@ -1,26 +1,19 @@
 <?php
-// Koneksi ke database
-$conn = new mysqli("localhost", "root", "", "user_database");
-
-if ($conn->connect_error) {
-    die("Koneksi gagal: " . $conn->connect_error);
-}
-
-// Mulai session
+// Start session and include config
 session_start();
+require_once 'config.php';
 
-// Fungsi untuk mengecek status login
+// Function to check login status
 function isLoggedIn() {
     return isset($_SESSION['username']) && isset($_SESSION['role']);
 }
 
-// Fungsi untuk mengecek apakah user memiliki akses
+// Function to check if user has access
 function hasAccess() {
-    // Izinkan akses untuk admin dan siswa
     return isLoggedIn() && ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'siswa');
 }
 
-// Fungsi untuk redirect ke halaman login dengan pesan
+// Function to redirect to login page with message
 function redirectToLogin($message = '') {
     $redirect_url = 'login.php';
     if (!empty($message)) {
@@ -30,12 +23,12 @@ function redirectToLogin($message = '') {
     exit();
 }
 
-// Cek akses
+// Check access
 if (!hasAccess()) {
     redirectToLogin('Silakan login terlebih dahulu');
 }
 
-// Fungsi untuk mendapatkan ID video YouTube dari URL
+// Function to get YouTube video ID from URL
 function getYoutubeVideoId($url) {
     $video_id = '';
     if (preg_match('%(?:youtube(?:-nocookie)?\.com/(?:[^/]+/.+/|(?:v|e(?:mbed)?)/|.*[?&]v=)|youtu\.be/)([^"&?/ ]{11})%i', $url, $match)) {
@@ -44,18 +37,24 @@ function getYoutubeVideoId($url) {
     return $video_id;
 }
 
-// Mengambil data dari database
+// Get data from database
 $sql = "SELECT * FROM edukasi_kesehatan ORDER BY id DESC";
 $result = $conn->query($sql);
 
-// Tampilkan pesan jika ada
+// Handle messages if any
+$alert_message = null;
+$alert_class = null;
+
 if (isset($_GET['message'])) {
-    if ($_GET['message'] == 'success') {
-        $alert_message = "Data berhasil dihapus!";
-        $alert_class = "success";
-    } else if ($_GET['message'] == 'error') {
-        $alert_message = "Gagal menghapus data!";
-        $alert_class = "error";
+    switch($_GET['message']) {
+        case 'success':
+            $alert_message = "Data berhasil dihapus!";
+            $alert_class = "success";
+            break;
+        case 'error':
+            $alert_message = "Gagal menghapus data!";
+            $alert_class = "error";
+            break;
     }
 }
 ?>

@@ -1,151 +1,148 @@
-    <?php
-    $servername = "localhost";
-    $username = "root";
-    $password = "";
-    $dbname = "user_database";
+<?php
+require_once 'config.php'; // Include the config file
 
-    // Bagian delete tetap seperti sebelumnya
-    if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete']) && isset($_POST['id_stok'])) {
-        try {
-            $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
-            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            
-            // Pastikan id_stok adalah angka valid
-            $id_stok = filter_var($_POST['id_stok'], FILTER_VALIDATE_INT);
-            
-            if ($id_stok === false) {
-                throw new Exception("ID stok tidak valid!");
-            }
-            
-            // Cek apakah data dengan id tersebut ada
-            $check = $conn->prepare("SELECT * FROM stok_obat WHERE id_stok = :id_stok LIMIT 1");
-            $check->bindParam(':id_stok', $id_stok, PDO::PARAM_INT);
-            $check->execute();
-            
-            if ($check->rowCount() == 0) {
-                throw new Exception("Data tidak ditemukan!");
-            }
-            
-            // Lakukan penghapusan dengan WHERE clause yang spesifik
-            $stmt = $conn->prepare("DELETE FROM stok_obat WHERE id_stok = :id_stok LIMIT 1");
-            $stmt->bindParam(':id_stok', $id_stok, PDO::PARAM_INT);
-            $stmt->execute();
-            
-            $success_message = "Data berhasil dihapus!";
-            
-        } catch(Exception $e) {
-            $error_message = "Error: " . $e->getMessage();
+// Bagian delete tetap seperti sebelumnya
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete']) && isset($_POST['id_stok'])) {
+    try {
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        // Pastikan id_stok adalah angka valid
+        $id_stok = filter_var($_POST['id_stok'], FILTER_VALIDATE_INT);
+        
+        if ($id_stok === false) {
+            throw new Exception("ID stok tidak valid!");
         }
-    } elseif (isset($_POST['action'])) {
-        try {
-            $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
-            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        // Cek apakah data dengan id tersebut ada
+        $check = $pdo->prepare("SELECT * FROM stok_obat WHERE id_stok = :id_stok LIMIT 1");
+        $check->bindParam(':id_stok', $id_stok, PDO::PARAM_INT);
+        $check->execute();
+        
+        if ($check->rowCount() == 0) {
+            throw new Exception("Data tidak ditemukan!");
+        }
+        
+        // Lakukan penghapusan dengan WHERE clause yang spesifik
+        $stmt = $pdo->prepare("DELETE FROM stok_obat WHERE id_stok = :id_stok LIMIT 1");
+        $stmt->bindParam(':id_stok', $id_stok, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        $success_message = "Data berhasil dihapus!";
+        
+    } catch(Exception $e) {
+        $error_message = "Error: " . $e->getMessage();
+    }
+} elseif (isset($_POST['action'])) {
+    try {
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            // Begin transaction
-            $conn->beginTransaction();
+        // Begin transaction
+        $pdo->beginTransaction();
 
-            if ($_POST['action'] == 'edit') {
-                $sql = "UPDATE stok_obat SET 
-                        nama = :nama,
-                        jumlah = :jumlah,
-                        dosis = :dosis,
-                        diperbarui = :diperbarui,
-                        tanggal_kadaluarsa = :tanggal_kadaluarsa
-                        WHERE id_stok = :id_stok";
-                        
-                $stmt = $conn->prepare($sql);
+        if ($_POST['action'] == 'edit') {
+            $sql = "UPDATE stok_obat SET 
+                    nama = :nama,
+                    jumlah = :jumlah,
+                    dosis = :dosis,
+                    diperbarui = :diperbarui,
+                    tanggal_kadaluarsa = :tanggal_kadaluarsa
+                    WHERE id_stok = :id_stok";
+                    
+            $stmt = $pdo->prepare($sql);
+            
+            $stmt->bindParam(':id_stok', $_POST['id_stok'], PDO::PARAM_INT);
+            $stmt->bindParam(':nama', $_POST['nama'], PDO::PARAM_STR);
+            $stmt->bindParam(':jumlah', $_POST['jumlah'], PDO::PARAM_INT);
+            $stmt->bindParam(':dosis', $_POST['dosis'], PDO::PARAM_STR);
+            $stmt->bindParam(':diperbarui', $_POST['diperbarui']);
+            $stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
+
+            $stmt->execute();
+            $pdo->commit();
+            $success_message = "Data berhasil diperbarui!";
+        } else {
+            // Add new record with auto ID
+            if (empty($_POST['nama']) || empty($_POST['jumlah']) || empty($_POST['dosis']) || 
+                empty($_POST['diperbarui']) || empty($_POST['tanggal_kadaluarsa'])) {
+                throw new Exception("Semua field harus diisi!");
+            }
+
+            // Cek apakah obat dengan nama yang sama sudah ada
+            $check_obat = $pdo->prepare("SELECT s.id_stok, s.id_pengingat, s.jumlah FROM stok_obat s 
+                                        WHERE LOWER(nama) = LOWER(:nama) LIMIT 1");
+            $check_obat->bindParam(':nama', $_POST['nama'], PDO::PARAM_STR);
+            $check_obat->execute();
+            $existing_obat = $check_obat->fetch(PDO::FETCH_ASSOC);
+
+            if ($existing_obat) {
+                // Update jumlah stok yang sudah ada
+                $new_jumlah = $existing_obat['jumlah'] + $_POST['jumlah'];
+                $update_sql = "UPDATE stok_obat SET 
+                            jumlah = :jumlah,
+                            diperbarui = :diperbarui,
+                            tanggal_kadaluarsa = :tanggal_kadaluarsa
+                            WHERE id_stok = :id_stok";
                 
-                $stmt->bindParam(':id_stok', $_POST['id_stok'], PDO::PARAM_INT);
+                $update_stmt = $pdo->prepare($update_sql);
+                $update_stmt->bindParam(':jumlah', $new_jumlah, PDO::PARAM_INT);
+                $update_stmt->bindParam(':diperbarui', $_POST['diperbarui']);
+                $update_stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
+                $update_stmt->bindParam(':id_stok', $existing_obat['id_stok'], PDO::PARAM_INT);
+                $update_stmt->execute();
+                
+                $pdo->commit();
+                $success_message = "Data obat ditambahkan ke stok yang sudah ada!";
+            } else {
+                // Insert ke pengingatobat dulu untuk mendapatkan ID
+                $sql_pengingat = "INSERT INTO pengingatobat (patient_id, condition_name, severity, nama_obat, waktu_pengingat) 
+                                VALUES ('AUTO', 'AUTO', 'Normal', :nama_obat, CURRENT_TIME())";
+                $stmt_pengingat = $pdo->prepare($sql_pengingat);
+                $stmt_pengingat->bindParam(':nama_obat', $_POST['nama'], PDO::PARAM_STR);
+                $stmt_pengingat->execute();
+                
+                // Dapatkan ID yang baru dibuat
+                $id_pengingat = $pdo->lastInsertId();
+
+                // Insert ke stok_obat
+                $sql = "INSERT INTO stok_obat (nama, jumlah, dosis, diperbarui, tanggal_kadaluarsa, id_pengingat) 
+                        VALUES (:nama, :jumlah, :dosis, :diperbarui, :tanggal_kadaluarsa, :id_pengingat)";
+                
+                $stmt = $pdo->prepare($sql);
+                
                 $stmt->bindParam(':nama', $_POST['nama'], PDO::PARAM_STR);
                 $stmt->bindParam(':jumlah', $_POST['jumlah'], PDO::PARAM_INT);
                 $stmt->bindParam(':dosis', $_POST['dosis'], PDO::PARAM_STR);
                 $stmt->bindParam(':diperbarui', $_POST['diperbarui']);
                 $stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
+                $stmt->bindParam(':id_pengingat', $id_pengingat, PDO::PARAM_INT);
 
                 $stmt->execute();
-                $conn->commit();
-                $success_message = "Data berhasil diperbarui!";
-            } else {
-                // Add new record with auto ID
-                if (empty($_POST['nama']) || empty($_POST['jumlah']) || empty($_POST['dosis']) || 
-                    empty($_POST['diperbarui']) || empty($_POST['tanggal_kadaluarsa'])) {
-                    throw new Exception("Semua field harus diisi!");
-                }
-
-                // Cek apakah obat dengan nama yang sama sudah ada
-                $check_obat = $conn->prepare("SELECT s.id_stok, s.id_pengingat, s.jumlah FROM stok_obat s 
-                                            WHERE LOWER(nama) = LOWER(:nama) LIMIT 1");
-                $check_obat->bindParam(':nama', $_POST['nama'], PDO::PARAM_STR);
-                $check_obat->execute();
-                $existing_obat = $check_obat->fetch(PDO::FETCH_ASSOC);
-
-                if ($existing_obat) {
-                    // Update jumlah stok yang sudah ada
-                    $new_jumlah = $existing_obat['jumlah'] + $_POST['jumlah'];
-                    $update_sql = "UPDATE stok_obat SET 
-                                jumlah = :jumlah,
-                                diperbarui = :diperbarui,
-                                tanggal_kadaluarsa = :tanggal_kadaluarsa
-                                WHERE id_stok = :id_stok";
-                    
-                    $update_stmt = $conn->prepare($update_sql);
-                    $update_stmt->bindParam(':jumlah', $new_jumlah, PDO::PARAM_INT);
-                    $update_stmt->bindParam(':diperbarui', $_POST['diperbarui']);
-                    $update_stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
-                    $update_stmt->bindParam(':id_stok', $existing_obat['id_stok'], PDO::PARAM_INT);
-                    $update_stmt->execute();
-                    
-                    $conn->commit();
-                    $success_message = "Data obat ditambahkan ke stok yang sudah ada!";
-                } else {
-                    // Insert ke pengingatobat dulu untuk mendapatkan ID
-                    $sql_pengingat = "INSERT INTO pengingatobat (patient_id, condition_name, severity, nama_obat, waktu_pengingat) 
-                                    VALUES ('AUTO', 'AUTO', 'Normal', :nama_obat, CURRENT_TIME())";
-                    $stmt_pengingat = $conn->prepare($sql_pengingat);
-                    $stmt_pengingat->bindParam(':nama_obat', $_POST['nama'], PDO::PARAM_STR);
-                    $stmt_pengingat->execute();
-                    
-                    // Dapatkan ID yang baru dibuat
-                    $id_pengingat = $conn->lastInsertId();
-
-                    // Insert ke stok_obat
-                    $sql = "INSERT INTO stok_obat (nama, jumlah, dosis, diperbarui, tanggal_kadaluarsa, id_pengingat) 
-                            VALUES (:nama, :jumlah, :dosis, :diperbarui, :tanggal_kadaluarsa, :id_pengingat)";
-                    
-                    $stmt = $conn->prepare($sql);
-                    
-                    $stmt->bindParam(':nama', $_POST['nama'], PDO::PARAM_STR);
-                    $stmt->bindParam(':jumlah', $_POST['jumlah'], PDO::PARAM_INT);
-                    $stmt->bindParam(':dosis', $_POST['dosis'], PDO::PARAM_STR);
-                    $stmt->bindParam(':diperbarui', $_POST['diperbarui']);
-                    $stmt->bindParam(':tanggal_kadaluarsa', $_POST['tanggal_kadaluarsa']);
-                    $stmt->bindParam(':id_pengingat', $id_pengingat, PDO::PARAM_INT);
-
-                    $stmt->execute();
-                    $conn->commit();
-                    $success_message = "Data berhasil disimpan!";
-                }
+                $pdo->commit();
+                $success_message = "Data berhasil disimpan!";
             }
-        } catch(Exception $e) {
-            if (isset($conn)) {
-                $conn->rollBack();
-            }
-            $error_message = "Error: " . $e->getMessage();
         }
-    }
-
-    // Kode untuk menampilkan data
-    try {
-        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
-        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        
-        // Query untuk data stok obat
-        $stmt = $conn->prepare("SELECT * FROM stok_obat ORDER BY diperbarui DESC");
-        $stmt->execute();
-        $data_stok = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch(PDOException $e) {
+    } catch(Exception $e) {
+        if (isset($pdo)) {
+            $pdo->rollBack();
+        }
         $error_message = "Error: " . $e->getMessage();
     }
+}
+
+// Kode untuk menampilkan data
+try {
+    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    // Query untuk data stok obat
+    $stmt = $pdo->prepare("SELECT * FROM stok_obat ORDER BY diperbarui DESC");
+    $stmt->execute();
+    $data_stok = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch(PDOException $e) {
+    $error_message = "Error: " . $e->getMessage();
+}
     ?>
 
     <!DOCTYPE html>
